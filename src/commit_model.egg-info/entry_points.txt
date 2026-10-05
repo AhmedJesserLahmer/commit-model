@@ -1,0 +1,2 @@
+[console_scripts]
+commit-model = commit_model.cli:main

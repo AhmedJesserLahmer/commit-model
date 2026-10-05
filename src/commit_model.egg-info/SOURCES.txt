@@ -1,0 +1,11 @@
+README.md
+pyproject.toml
+src/commit_model/__init__.py
+src/commit_model/cli.py
+src/commit_model/diff_utils.py
+src/commit_model.egg-info/PKG-INFO
+src/commit_model.egg-info/SOURCES.txt
+src/commit_model.egg-info/dependency_links.txt
+src/commit_model.egg-info/entry_points.txt
+src/commit_model.egg-info/requires.txt
+src/commit_model.egg-info/top_level.txt
