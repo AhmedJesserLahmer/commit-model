@@ -8,3 +8,4 @@ checkpoints/
 *.bin
 .env
 wandb/
+*.gguf
