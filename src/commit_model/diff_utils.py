@@ -30,6 +30,9 @@ MAX_FILES_PER_DIFF = 6
 
 PROMPT_TEMPLATE = "Write a Conventional Commits message for this diff.\n\n{diff}\n\nCommit message:"
 
+# Must match SEQ_LEN in fine-tuning_Kaggle.ipynb: the model never saw longer prompts.
+SEQ_LEN = 768
+
 
 def is_generated_path(path: str) -> bool:
     return any(p.search(path) for p in GENERATED_FILE_PATTERNS)
@@ -71,8 +74,20 @@ def truncate_diff(diff: str) -> str | None:
     return "".join(pieces)[:MAX_DIFF_CHARS]
 
 
-def build_prompt(diff: str) -> str | None:
+def fit_prompt(tokenizer, diff: str, reserve_tokens: int = 40) -> str:
+    """Format the prompt, truncating the diff (not the prompt's tail) to fit SEQ_LEN.
+
+    Mirrors the training-time truncation: `reserve_tokens` stands in for the commit
+    message, so the instruction and trailing "Commit message:" always survive.
+    """
+    template_tokens = len(tokenizer(PROMPT_TEMPLATE.format(diff=""), add_special_tokens=False).input_ids)
+    budget = max(SEQ_LEN - template_tokens - reserve_tokens - 8, 0)
+    diff_ids = tokenizer(diff, add_special_tokens=False).input_ids[:budget]
+    return PROMPT_TEMPLATE.format(diff=tokenizer.decode(diff_ids))
+
+
+def build_diff(diff: str) -> str | None:
     truncated = truncate_diff(diff)
     if truncated is None or len(truncated.strip()) < 20:
         return None
-    return PROMPT_TEMPLATE.format(diff=truncated)
+    return truncated

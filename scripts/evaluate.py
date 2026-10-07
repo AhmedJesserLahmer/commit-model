@@ -13,11 +13,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 import evaluate
-import torch
-from peft import PeftModel
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-from commit_model.diff_utils import PROMPT_TEMPLATE
+from commit_model.cli import DEFAULT_ADAPTER_PATH, DEFAULT_BASE_MODEL, generate_message, load_model
+from commit_model.diff_utils import fit_prompt
 
 TYPE_RE = re.compile(r"^(\w+)(\(.+?\))?!?:")
 
@@ -29,42 +27,22 @@ def extract_type(message: str) -> str | None:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base-model", default="Qwen/Qwen2.5-Coder-1.5B-Instruct")
-    parser.add_argument("--adapter-path", default="checkpoints/commit-model-lora")
+    parser.add_argument("--base-model", default=DEFAULT_BASE_MODEL)
+    parser.add_argument("--adapter-path", default=DEFAULT_ADAPTER_PATH)
+    parser.add_argument("--no-adapter", action="store_true", help="evaluate the base model alone, as a baseline")
     parser.add_argument("--test-file", default="data/processed/test.jsonl")
     parser.add_argument("--limit", type=int, default=200)
     args = parser.parse_args()
 
     examples = [json.loads(l) for l in Path(args.test_file).read_text().splitlines()][: args.limit]
 
-    tokenizer = AutoTokenizer.from_pretrained(args.base_model)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.float16,
-        bnb_4bit_use_double_quant=True,
-    )
-    model = AutoModelForCausalLM.from_pretrained(
-        args.base_model, quantization_config=bnb_config, device_map="auto"
-    )
-    model = PeftModel.from_pretrained(model, args.adapter_path)
-    model.eval()
+    model, tokenizer = load_model(args.base_model, None if args.no_adapter else args.adapter_path)
 
     predictions, references = [], []
     type_correct = 0
 
     for ex in examples:
-        prompt = PROMPT_TEMPLATE.format(diff=ex["diff"])
-        inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=384).to(model.device)
-        with torch.no_grad():
-            output = model.generate(
-                **inputs, max_new_tokens=40, do_sample=False, pad_token_id=tokenizer.pad_token_id
-            )
-        pred = tokenizer.decode(output[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
-        pred = pred.strip().splitlines()[0].strip()
+        pred = generate_message(model, tokenizer, fit_prompt(tokenizer, ex["diff"]))
 
         predictions.append(pred)
         references.append(ex["message"])
@@ -76,6 +54,7 @@ def main():
     bleu_score = bleu.compute(predictions=predictions, references=[[r] for r in references])
     rouge_score = rouge.compute(predictions=predictions, references=references)
 
+    print(f"Model: {args.base_model}" + ("" if args.no_adapter else f" + {args.adapter_path}"))
     print(f"Examples evaluated: {len(examples)}")
     print(f"Type-prefix accuracy: {type_correct / len(examples):.1%}")
     print(f"BLEU: {bleu_score['score']:.2f}")

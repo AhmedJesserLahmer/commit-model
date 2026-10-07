@@ -12,7 +12,7 @@ import torch
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-from commit_model.diff_utils import build_prompt
+from commit_model.diff_utils import build_diff, fit_prompt
 
 DEFAULT_BASE_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
 DEFAULT_ADAPTER_PATH = "checkpoints/commit-model-lora"
@@ -57,7 +57,7 @@ def generate_message(model, tokenizer, prompt: str, max_new_tokens: int = 40) ->
             pad_token_id=tokenizer.pad_token_id,
         )
     text = tokenizer.decode(output[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
-    return text.strip().splitlines()[0].strip()
+    return (text.strip().splitlines() or [""])[0].strip()
 
 
 def main():
@@ -73,14 +73,14 @@ def main():
         print("No staged changes (git diff --staged is empty).", file=sys.stderr)
         sys.exit(1)
 
-    prompt = build_prompt(diff)
-    if prompt is None:
+    diff = build_diff(diff)
+    if diff is None:
         print("Staged diff was empty after filtering (only lockfiles/generated files?).", file=sys.stderr)
         sys.exit(1)
 
     adapter_path = None if args.no_adapter else args.adapter_path
     model, tokenizer = load_model(args.base_model, adapter_path)
-    message = generate_message(model, tokenizer, prompt)
+    message = generate_message(model, tokenizer, fit_prompt(tokenizer, diff))
 
     if args.hook_file:
         with open(args.hook_file, "r") as f:
