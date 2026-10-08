@@ -1,0 +1,79 @@
+{
+  "name": "commit-model",
+  "displayName": "Commit Model",
+  "description": "Writes Conventional Commits messages from your staged changes with a small local model. Runs offline on your machine.",
+  "version": "0.1.0",
+  "publisher": "commit-model",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": ["SCM Providers", "Machine Learning"],
+  "main": "./dist/extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "extensionDependencies": ["vscode.git"],
+  "contributes": {
+    "commands": [
+      {
+        "command": "commitModel.start",
+        "title": "Start",
+        "category": "Commit Model"
+      },
+      {
+        "command": "commitModel.stop",
+        "title": "Stop",
+        "category": "Commit Model"
+      },
+      {
+        "command": "commitModel.generate",
+        "title": "Generate Commit Message",
+        "category": "Commit Model",
+        "icon": "$(sparkle)"
+      }
+    ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "commitModel.generate",
+          "when": "scmProvider == git",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Commit Model",
+      "properties": {
+        "commitModel.modelUri": {
+          "type": "string",
+          "default": "hf:<username>/<repo>/commit-model-Q4_K_M.gguf",
+          "description": "Where to download the model from on first start (Hugging Face URI or https URL)."
+        },
+        "commitModel.modelPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to a local .gguf model. When set, it's used instead of downloading modelUri."
+        },
+        "commitModel.gpu": {
+          "type": "string",
+          "enum": ["auto", "cpu"],
+          "default": "auto",
+          "description": "Use the GPU when one is available (auto), or always run on the CPU."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -watch -p .",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "node-llama-cpp": "^3.22.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.0.0",
+    "typescript": "^5.6.0"
+  }
+}

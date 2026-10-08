@@ -9,3 +9,4 @@ checkpoints/
 .env
 wandb/
 *.gguf
+merged_weights_quantized_model/

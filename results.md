@@ -46,6 +46,19 @@ model's best possible output.
 
 Averaged equally across the 10 types, accuracy is about 39%.
 
+## 4-bit model (Q4_K_M GGUF)
+
+Merged (bf16) and quantized locally with llama.cpp b11476, run in `llama-server` on an RTX 3050 4GB.
+Scored on the first 200 test examples, against the fp32 fine-tuned model on the same examples:
+
+| Model | Valid format | Type accuracy | BLEU |
+|---|---|---|---|
+| Fine-tuned, fp32 | 99.5% | 67.5% | 16.67 |
+| **Fine-tuned, Q4_K_M (986MB)** | **99.5%** | **71.0%** | **16.45** |
+
+No measurable loss from quantizing: the type-accuracy gap is within the ±6.5-point noise at 200 examples.
+Speed: 0.28s per message on the GPU.
+
 ## Takeaways
 
 - Fine-tuning taught the format almost perfectly and beats the majority baseline by 14 points on

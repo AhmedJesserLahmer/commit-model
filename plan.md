@@ -1,44 +1,43 @@
 # Plan
 
-Goal: ship the fine-tuned model as a local commit-message tool that runs on any VS Code user's machine.
+Goal: ship the fine-tuned model as a local commit-message tool that runs on any VS Code user's machine,
+installed as one extension that handles the engine, model download and running.
 
-**Done:** data filtering, LoRA fine-tuning, evaluation (`results.md`). Merge and quantize notebooks written, not yet run.
+**Done:**
+- Data filtering, LoRA fine-tuning, evaluation (`results.md`)
+- Merge + 4-bit quantization, run locally (`merged_weights_quantized_model/`); no measurable quality loss
+- VS Code extension MVP code (`vscode-extension/`, details in `MVP.md`): node-llama-cpp engine, Start / Stop /
+  Generate commands. Engine verified outside VS Code on 200 test examples (same quality as fp32).
 
-## 1. Commit current work
-- **Task:** commit the truncation fix, the eval baseline flag, the new notebooks, `results.md`, `plan.md`.
-- **Why:** none of it is in git yet; one lost file or bad edit would undo a day of work.
+## 1. Finish the MVP
+- **Task:** upload `commit-model-Q4_K_M.gguf` to Hugging Face and set the extension's default `modelUri`;
+  try the extension in VS Code (F5) on real commits.
+- **Why:** the download-on-first-start flow and the Source Control button can only be checked inside VS Code.
 
-## 2. Merge the adapter (`merge_adapter_Kaggle.ipynb`)
-- **Task:** fold the LoRA adapter into the base model, producing one standalone model.
-- **Why:** GGUF, Ollama and Hugging Face users need a single model, not base + adapter loaded through PEFT.
+## 2. Commit current work
+- **Task:** commit the extension, notebooks, scripts, `results.md`, `plan.md`, `MVP.md`.
+- **Why:** none of this session's work is in git yet.
 
-## 3. Quantize to 4-bit (`quantize_gguf_Kaggle.ipynb`)
-- **Task:** convert the merged model to a ~1GB 4-bit GGUF and check its scores against fp32 on the same 200 examples.
-- **Why:** full precision needs ~6GB and an NVIDIA GPU; 4-bit GGUF runs on any machine. The check confirms
-  quantizing didn't hurt quality. If type accuracy drops by more than ~3 points, use `Q5_K_M` or `Q8_0` instead.
+## 3. CI tests
+- **Task:** GitHub Actions running on every push:
+  - Python/TypeScript prompt parity: `diff_utils.py` and `prompt.ts` must build identical prompts
+  - extension compiles; engine smoke test (`vscode-extension/test/smoke.mjs`) with the model cached
+- **Why:** the prompt logic exists in two languages and the model depends on it exactly; CI catches drift
+  and keeps the working engine from breaking.
 
-## 4. Run it locally with Ollama
-- **Task:** `ollama create commit-model -f Modelfile`, try it on real diffs, then make `cli.py` call Ollama
-  instead of loading the model with PyTorch.
-- **Why:** proves the quantized model works outside Kaggle, makes the CLI light (no torch, PEFT or GPU
-  requirement), and removes the adapter-path problem: the model is called by name.
+## 4. Package and publish the extension
+- **Task:** per-platform `.vsix` builds (node-llama-cpp's engine binaries differ per OS/GPU; `node_modules`
+  is ~900MB with every CUDA variant), test on a machine without an NVIDIA GPU, publish to the Marketplace.
+- **Why:** users install from the Marketplace; one package with every platform's binaries would be far too big.
 
-## 5. Publish the model on Hugging Face
-- **Task:** upload the merged model, the GGUF, the `Modelfile` and a model card (prompt format, results, known `fix` bias).
-- **Why:** the VS Code extension and its users need a public place to download the model from.
-
-## 6. Build the VS Code extension
-- **Task:** a "Generate commit message" button in the Source Control panel: reads the staged diff, calls
-  Ollama, fills the commit box. Clear error if Ollama or the model is missing.
-- **Why:** the git hook likely doesn't fill the message when committing from VS Code's panel (VS Code
-  passes its own message, so the hook skips). A button is how VS Code users expect this to work.
-  Verify the hook behaviour first.
-
-## 7. Update the README
-- **Task:** document the full workflow: data, training, evaluation, merge, quantize, Ollama, extension.
-- **Why:** it currently describes settings and steps that no longer exist.
-
-## Later: improve the model (optional)
-- **Task:** cap `fix` examples in the training data, fine-tune again, compare with `results.md`.
+## 5. Improve the model
+- **Task:** cap `fix` examples in the training data, fine-tune again, compare with `results.md`, then
+  re-merge, re-quantize and upload.
 - **Why:** the model labels too much as `fix` (feat/chore/refactor are right only ~35% of the time).
-  Only worth it if this bothers you in real use.
+
+## 6. Update the README
+- **Task:** document the full workflow: data, training, evaluation, merge, quantize, extension.
+- **Why:** it describes settings and steps that no longer exist.
+
+## Later (optional)
+- Auto-unload the model after idle time; use Ollama when it's already installed; message bodies for large diffs.
