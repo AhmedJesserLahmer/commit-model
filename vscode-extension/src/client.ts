@@ -1,5 +1,6 @@
 // Talks to a running llama-server: tokenizing, and generating a commit message for a diff.
 // Shared by the extension and the terminal prompt (terminal.ts).
+import { cleanMessage } from "./postprocess";
 import { MAX_NEW_TOKENS, Tokenizer, fitPrompt } from "./prompt";
 
 export async function isHealthy(baseUrl: string): Promise<boolean> {
@@ -42,6 +43,7 @@ export class ServerClient {
             repeat_penalty: 1.0, // no repeat penalty: training and evaluation never used one
             stop: ["\n"], // only the first line is kept anyway
         });
-        return (content.trim().split(/\r?\n/)[0] ?? "").trim();
+        const firstLine = (content.trim().split(/\r?\n/)[0] ?? "").trim();
+        return firstLine && cleanMessage(firstLine);
     }
 }

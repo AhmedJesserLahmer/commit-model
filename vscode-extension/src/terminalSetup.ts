@@ -41,11 +41,13 @@ export function setUpTerminals(context: vscode.ExtensionContext, realGit: string
     if (process.platform === "win32") {
         return undefined; // the wrapper is a bash script; Windows support comes later
     }
-    const storage = context.globalStorageUri.fsPath;
-    const binDir = path.join(storage, "bin");
-    // One per VS Code window (each has its own extension host), so windows don't turn each other off.
-    const stateFile = path.join(storage, `terminal-state-${process.pid}.json`);
+    const binDir = path.join(context.globalStorageUri.fsPath, "bin");
+    // One per workspace, so windows on different folders don't turn each other off. It must stay the
+    // same across window reloads: terminals survive a reload and keep the path they were started with.
+    const stateDir = (context.storageUri ?? context.globalStorageUri).fsPath;
+    const stateFile = path.join(stateDir, "terminal-state.json");
     fs.mkdirSync(binDir, { recursive: true });
+    fs.mkdirSync(stateDir, { recursive: true });
     fs.writeFileSync(path.join(binDir, "git"), WRAPPER, { mode: 0o755 });
     fs.chmodSync(path.join(binDir, "git"), 0o755);
     fs.rmSync(stateFile, { force: true }); // starts off

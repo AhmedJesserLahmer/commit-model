@@ -1,0 +1,20 @@
+[
+  ["chore: add tests workflow (#<I>)", "chore: add tests workflow"],
+  ["feat(app-shell): add re-export of gtm logout and flopflip (#<I>)", "feat(app-shell): add re-export of gtm logout and flopflip"],
+  ["docs: fix simple typo, becuase -> because (#<I>)", "docs: fix simple typo, becuase -> because"],
+  ["feat(form): Focus location input when 'X' pressed. Addresses conveyal/trimet-mod-otp#<I>", "feat(form): focus location input when 'X' pressed."],
+  ["fix: handle empty input, closes #<I>", "fix: handle empty input"],
+  ["fix: compatibility with php <I>", "fix: compatibility with php"],
+  ["docs: link to <URL> in the README", "docs: link to in the README"],
+  ["test: more test case [#<I>]", "test: more test case"],
+  ["refactor(todo): Extract command functions into separate module", "refactor(todo): extract command functions into separate module"],
+  ["docs: Add more details to README", "docs: add more details to README"],
+  ["docs: README update", "docs: README update"],
+  ["fix: PropTable crash on empty rows", "fix: PropTable crash on empty rows"],
+  ["fix: inconsistency in licence information (fixes #8)", "fix: inconsistency in licence information (fixes #8)"],
+  ["feat(ClientDataResolver): account for discord.gg/invite/<code> invites", "feat(ClientDataResolver): account for discord.gg/invite/<code> invites"],
+  ["refactor(AgentState): Rename GetUnbadeOffers -> GetOffersWithoutBids", "refactor(AgentState): rename GetUnbadeOffers -> GetOffersWithoutBids"],
+  ["fix(storage): load_tasks should return an empty list if there is no data file", "fix(storage): load_tasks should return an empty list if there is no data file"],
+  ["chore: <I>", "chore: <I>"],
+  ["Update the docs (#<I>)", "update the docs"]
+]

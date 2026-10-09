@@ -20,6 +20,7 @@ import zipfile
 from pathlib import Path
 
 from commit_model.diff_utils import fit_prompt
+from commit_model.postprocess import clean_message
 
 # The llama.cpp release the model was quantized and verified with.
 LLAMA_TAG = "b11476"
@@ -230,7 +231,8 @@ class Engine:
             "repeat_penalty": 1.0,  # no repeat penalty: training and evaluation never used one
             "stop": ["\n"],  # only the first line is kept anyway
         })["content"]
-        return (content.strip().splitlines() or [""])[0].strip()
+        first_line = (content.strip().splitlines() or [""])[0].strip()
+        return clean_message(first_line) if first_line else first_line
 
     def __exit__(self, *exc) -> None:
         if self.process and self.process.poll() is None:

@@ -32,9 +32,13 @@ installed as one extension that handles the engine, model download and running.
 - **Why:** users install from the Marketplace; the engine download has only been tested on Linux so far.
 
 ## 5. Improve the model
-- **Task:** cap `fix` examples in the training data, fine-tune again, compare with `results.md`, then
-  re-merge, re-quantize and upload.
-- **Why:** the model labels too much as `fix` (feat/chore/refactor are right only ~35% of the time).
+- **Task:** in `CommitBench_filter.ipynb`, cap `fix` examples and remove CommitBench's placeholders from
+  the messages (`<I>` for numbers, `<URL>`, `<EMAIL>`: same rule as `clean_message` in
+  `src/commit_model/postprocess.py`); fine-tune again, compare with `results.md`, then re-merge,
+  re-quantize and upload.
+- **Why:** the model labels too much as `fix` and never picks the rare types (`build`, `ci`, `perf`,
+  `style` all got a common type in the 10 test scenarios). 24% of training messages contain a
+  placeholder, so the model writes things like `(#<I>)`; the extension and CLI strip them for now.
 
 ## 6. Update the README
 - **Task:** document the full workflow: data, training, evaluation, merge, quantize, extension.

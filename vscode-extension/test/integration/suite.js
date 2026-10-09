@@ -71,6 +71,14 @@ const tests = [
         assert.ok(terminals.env.COMMIT_MODEL_REAL_GIT, "the real git wasn't found");
     }],
 
+    ["terminals keep working after a window reload (stable on/off file)", async () => {
+        // Terminals survive a window reload and keep the environment they started with, so the
+        // on/off file must not depend on anything that changes on reload, like the process ID.
+        const stateFile = terminals.env.COMMIT_MODEL_STATE;
+        assert.ok(!stateFile.includes(String(process.pid)), `per-process path: ${stateFile}`);
+        assert.strictEqual(path.basename(stateFile), "terminal-state.json");
+    }],
+
     ["while off, git add is plain git add", async () => {
         write("draft.txt", "draft\n");
         const output = gitInTerminal(["add", "draft.txt"]);
