@@ -1,21 +1,26 @@
 """CLI: reads `git diff --staged`, generates a Conventional Commits message.
 
+Runs the 4-bit model in llama.cpp's llama-server (same engine as the VS Code extension). The engine
+and, unless a local model is given, the model are downloaded once into ~/.cache/commit-model.
+
 Usage:
-    commit-model                      # print a suggestion for the staged diff
-    commit-model --hook-file MSGFILE  # write suggestion into a prepare-commit-msg file
+    commit-model                                  # print a suggestion for the staged diff
+    commit-model --model-path model.gguf          # use a local model file
+    commit-model --hook-file MSGFILE              # write suggestion into a prepare-commit-msg file
+
+The model can also be set with the COMMIT_MODEL_PATH (local file) or COMMIT_MODEL_URI environment variables.
 """
 import argparse
+import os
 import subprocess
 import sys
+from pathlib import Path
 
-import torch
-from peft import PeftModel
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from commit_model.diff_utils import build_diff
+from commit_model.engine import DEFAULT_CACHE_DIR, Engine
 
-from commit_model.diff_utils import build_diff, fit_prompt
-
-DEFAULT_BASE_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
-DEFAULT_ADAPTER_PATH = "checkpoints/commit-model-lora"
+# Placeholder until the model is published on Hugging Face.
+DEFAULT_MODEL_URI = "hf:<username>/<repo>/commit-model-Q4_K_M.gguf"
 
 
 def get_staged_diff() -> str:
@@ -25,48 +30,21 @@ def get_staged_diff() -> str:
     return result.stdout
 
 
-def load_model(base_model: str, adapter_path: str | None):
-    tokenizer = AutoTokenizer.from_pretrained(base_model)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.float16,
-        bnb_4bit_use_double_quant=True,
-    )
-    model = AutoModelForCausalLM.from_pretrained(
-        base_model, quantization_config=bnb_config, device_map="auto"
-    )
-    if adapter_path:
-        model = PeftModel.from_pretrained(model, adapter_path)
-    model.eval()
-    return model, tokenizer
-
-
-def generate_message(model, tokenizer, prompt: str, max_new_tokens: int = 40) -> str:
-    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-    with torch.no_grad():
-        output = model.generate(
-            **inputs,
-            max_new_tokens=max_new_tokens,
-            do_sample=False,
-            temperature=None,
-            top_p=None,
-            pad_token_id=tokenizer.pad_token_id,
-        )
-    text = tokenizer.decode(output[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
-    return (text.strip().splitlines() or [""])[0].strip()
-
-
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base-model", default=DEFAULT_BASE_MODEL)
-    parser.add_argument("--adapter-path", default=DEFAULT_ADAPTER_PATH)
-    parser.add_argument("--no-adapter", action="store_true", help="run the base model without a LoRA adapter")
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--model-path", default=os.environ.get("COMMIT_MODEL_PATH"),
+                        help="local .gguf model (default: $COMMIT_MODEL_PATH)")
+    parser.add_argument("--model-uri", default=os.environ.get("COMMIT_MODEL_URI", DEFAULT_MODEL_URI),
+                        help="hf:<user>/<repo>/<file> or URL to download the model from (default: $COMMIT_MODEL_URI)")
+    parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR,
+                        help=f"where the engine and model are downloaded (default: {DEFAULT_CACHE_DIR})")
+    parser.add_argument("--cpu", action="store_true", help="run on the CPU even if a GPU is available")
     parser.add_argument("--hook-file", help="prepare-commit-msg target file: write suggestion here instead of stdout")
     args = parser.parse_args()
+
+    if not args.model_path and "<username>" in args.model_uri:
+        print("No model configured: pass --model-path, or set COMMIT_MODEL_PATH or COMMIT_MODEL_URI.", file=sys.stderr)
+        sys.exit(1)
 
     diff = get_staged_diff()
     if not diff.strip():
@@ -78,9 +56,8 @@ def main():
         print("Staged diff was empty after filtering (only lockfiles/generated files?).", file=sys.stderr)
         sys.exit(1)
 
-    adapter_path = None if args.no_adapter else args.adapter_path
-    model, tokenizer = load_model(args.base_model, adapter_path)
-    message = generate_message(model, tokenizer, fit_prompt(tokenizer, diff))
+    with Engine(args.model_path, args.model_uri, args.cache_dir, use_gpu=not args.cpu) as engine:
+        message = engine.generate(diff)
 
     if args.hook_file:
         with open(args.hook_file, "r") as f:

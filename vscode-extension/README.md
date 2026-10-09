@@ -9,16 +9,24 @@ and the model (~1GB), then runs the server as a background process while the mod
 
 ## Use
 
-- Click the ✨ button in the Source Control panel: the message appears in the commit box. The model
-  starts automatically the first time.
-- Command Palette (Ctrl+Shift+P):
-  - **Commit Model: Start**: load the model (downloads the engine and model on the very first start)
-  - **Commit Model: Stop**: unload it and free memory
-  - **Commit Model: Generate Commit Message**
-- The status bar shows the model's state. Click it to start or stop.
+1. Click **Commit Model: Off** in the bottom-left status bar to turn it **On**. The first time, it
+   downloads the engine and the model (progress shows in the status bar).
+2. In VS Code's terminal, stage your changes:
+   ```
+   $ git add .
+   Commit Model suggests:  feat: add subtract function
+   Commit with this message? [Y/N] y
+   ✅ Committed with message: "feat: add subtract function"
+   ```
+   **Y** commits with the suggestion; **N** lets you type your own message (empty cancels).
+3. Click **Commit Model: On** to turn it off and free the memory.
 
-Only the first line (subject) is generated. Review it before committing: the model tends to label
-too many changes as `fix`.
+Only `git add` in VS Code's terminal triggers it (Linux and macOS for now). Save your files first: Git
+only sees saved changes. The ✨ button in the Source Control panel puts a suggestion in the commit box
+instead. Terminals opened before the extension started need to be reopened once.
+
+Only the first line (subject) is generated. Read it before typing Y: the model tends to label too many
+changes as `fix`.
 
 ## Settings
 
@@ -43,10 +51,11 @@ Git repository, stage a change and click ✨.
 
 F5 starts the window with your other extensions disabled, so they can't interfere with the test.
 
-Smoke test outside VS Code (downloads the engine on first run):
+Tests (both use the locally quantized model and download the engine on first run):
 
 ```bash
-node test/smoke.mjs ../merged_weights_quantized_model/quantized-model/commit-model-Q4_K_M.gguf
+npm run test:integration   # the whole workflow inside a real VS Code (~30s)
+npm run test:smoke         # the engine alone, outside VS Code
 ```
 
 Diff filtering and prompt building in `src/prompt.ts` mirror `src/commit_model/diff_utils.py`.

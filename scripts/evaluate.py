@@ -13,11 +13,52 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 import evaluate
+import torch
+from peft import PeftModel
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-from commit_model.cli import DEFAULT_ADAPTER_PATH, DEFAULT_BASE_MODEL, generate_message, load_model
 from commit_model.diff_utils import fit_prompt
 
+DEFAULT_BASE_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
+DEFAULT_ADAPTER_PATH = "checkpoints/commit-model-lora"
+
 TYPE_RE = re.compile(r"^(\w+)(\(.+?\))?!?:")
+
+
+def load_model(base_model: str, adapter_path: str | None):
+    """Base model in 4-bit, plus the LoRA adapter unless adapter_path is None."""
+    tokenizer = AutoTokenizer.from_pretrained(base_model)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_use_double_quant=True,
+    )
+    model = AutoModelForCausalLM.from_pretrained(
+        base_model, quantization_config=bnb_config, device_map="auto"
+    )
+    if adapter_path:
+        model = PeftModel.from_pretrained(model, adapter_path)
+    model.eval()
+    return model, tokenizer
+
+
+def generate_message(model, tokenizer, prompt: str, max_new_tokens: int = 40) -> str:
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+    with torch.no_grad():
+        output = model.generate(
+            **inputs,
+            max_new_tokens=max_new_tokens,
+            do_sample=False,
+            temperature=None,
+            top_p=None,
+            pad_token_id=tokenizer.pad_token_id,
+        )
+    text = tokenizer.decode(output[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+    return (text.strip().splitlines() or [""])[0].strip()
 
 
 def extract_type(message: str) -> str | None:

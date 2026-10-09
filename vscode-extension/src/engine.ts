@@ -9,8 +9,8 @@ import * as fs from "fs/promises";
 import * as net from "net";
 import * as path from "path";
 
+import { ServerClient, isHealthy } from "./client";
 import { downloadFile, resolveModelUrl } from "./download";
-import { MAX_NEW_TOKENS, Tokenizer, fitPrompt } from "./prompt";
 
 // The llama.cpp release the model was quantized and verified with.
 const LLAMA_TAG = "b11476";
@@ -124,9 +124,30 @@ async function pickDevice(serverPath: string, env: NodeJS.ProcessEnv): Promise<s
     return (devices.find((d) => !integrated.test(d.name)) ?? devices[0]).id;
 }
 
+/**
+ * Starts the server so that it also stops when this process (VS Code's extension host) ends for any
+ * reason, including a crash or being killed, which skip the normal shutdown. Otherwise it would keep
+ * running in the background holding ~1GB of (GPU) memory. On Linux and macOS a small shell watchdog
+ * does this; killing the returned process stops the server too.
+ */
+function spawnWithWatchdog(file: string, args: string[], options: { cwd: string; env: NodeJS.ProcessEnv }): ChildProcess {
+    const stdio: ["ignore", "pipe", "pipe"] = ["ignore", "pipe", "pipe"];
+    if (process.platform === "win32") {
+        return spawn(file, args, { ...options, stdio });
+    }
+    const watchdog = [
+        '"$@" & server=$!',
+        "trap 'kill $server 2>/dev/null; wait $server; exit' TERM INT HUP",
+        `while kill -0 ${process.pid} 2>/dev/null && kill -0 $server 2>/dev/null; do sleep 1; done`,
+        "kill $server 2>/dev/null",
+        "wait $server",
+    ].join("\n");
+    return spawn("/bin/sh", ["-c", watchdog, "llama-server-watchdog", file, ...args], { ...options, stdio });
+}
+
 export class ModelEngine {
     private server?: ChildProcess;
-    private baseUrl?: string;
+    private client?: ServerClient;
     private starting?: Promise<void>;
     private stopping = false;
 
@@ -134,7 +155,12 @@ export class ModelEngine {
     constructor(private readonly onUnexpectedExit: (reason: string) => void = () => undefined) {}
 
     get isRunning(): boolean {
-        return this.server !== undefined && this.baseUrl !== undefined;
+        return this.server !== undefined && this.client !== undefined;
+    }
+
+    /** The running server's address, e.g. for the terminal prompt. */
+    get url(): string | undefined {
+        return this.client?.baseUrl;
     }
 
     /** Downloads the engine and model if needed, then starts the server. Concurrent calls share one start. */
@@ -224,7 +250,7 @@ export class ModelEngine {
             args.push("--device", device);
         }
 
-        const server = spawn(serverPath, args, { cwd: binDir, env, stdio: ["ignore", "pipe", "pipe"] });
+        const server = spawnWithWatchdog(serverPath, args, { cwd: binDir, env });
         let output = "";
         const keepTail = (chunk: Buffer) => {
             output = (output + chunk.toString()).slice(-4000);
@@ -238,7 +264,7 @@ export class ModelEngine {
 
         const baseUrl = `http://127.0.0.1:${port}`;
         const deadline = Date.now() + 180_000;
-        while (!(await this.isHealthy(baseUrl))) {
+        while (!(await isHealthy(baseUrl))) {
             if (exited) {
                 throw new Error(`llama-server exited while loading the model:\n${output.trim().split("\n").slice(-8).join("\n")}`);
             }
@@ -250,59 +276,24 @@ export class ModelEngine {
         }
 
         this.server = server;
-        this.baseUrl = baseUrl;
+        this.client = new ServerClient(baseUrl);
         server.on("exit", (code) => {
             if (this.server !== server) {
                 return;
             }
-            this.server = this.baseUrl = undefined;
+            this.server = this.client = undefined;
             if (!this.stopping) {
                 this.onUnexpectedExit(`llama-server stopped unexpectedly (exit code ${code})`);
             }
         });
     }
 
-    private async isHealthy(baseUrl: string): Promise<boolean> {
-        try {
-            const response = await fetch(`${baseUrl}/health`);
-            return response.ok && ((await response.json()) as { status?: string }).status === "ok";
-        } catch {
-            return false;
-        }
-    }
-
-    private async post<T>(endpoint: string, body: unknown): Promise<T> {
-        if (!this.baseUrl) {
+    /** One-line commit message for an already-filtered diff. */
+    generate(diff: string): Promise<string> {
+        if (!this.client) {
             throw new Error("Model isn't running");
         }
-        const response = await fetch(`${this.baseUrl}${endpoint}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-        });
-        if (!response.ok) {
-            throw new Error(`llama-server ${endpoint} failed (HTTP ${response.status}): ${await response.text()}`);
-        }
-        return (await response.json()) as T;
-    }
-
-    private readonly tokenizer: Tokenizer = {
-        tokenize: async (text) =>
-            (await this.post<{ tokens: number[] }>("/tokenize", { content: text, add_special: false })).tokens,
-        detokenize: async (tokens) => (await this.post<{ content: string }>("/detokenize", { tokens })).content,
-    };
-
-    /** One-line commit message for an already-filtered diff. */
-    async generate(diff: string): Promise<string> {
-        const { content } = await this.post<{ content: string }>("/completion", {
-            prompt: await fitPrompt(this.tokenizer, diff),
-            n_predict: MAX_NEW_TOKENS,
-            temperature: 0, // greedy, as in training evaluation
-            top_k: 1,
-            repeat_penalty: 1.0, // no repeat penalty: training and evaluation never used one
-            stop: ["\n"], // only the first line is kept anyway
-        });
-        return (content.trim().split(/\r?\n/)[0] ?? "").trim();
+        return this.client.generate(diff);
     }
 
     /** Stops the server and frees its memory. If it's still starting, waits for that first. */
@@ -310,7 +301,7 @@ export class ModelEngine {
         await this.starting?.catch(() => undefined);
         const server = this.server;
         if (!server || server.exitCode !== null || server.signalCode !== null) {
-            this.server = this.baseUrl = undefined;
+            this.server = this.client = undefined;
             return;
         }
         this.stopping = true;
@@ -322,7 +313,7 @@ export class ModelEngine {
             clearTimeout(timeout);
         } finally {
             this.stopping = false;
-            this.server = this.baseUrl = undefined;
+            this.server = this.client = undefined;
         }
     }
 }

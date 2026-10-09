@@ -22,18 +22,23 @@
   "contributes": {
     "commands": [
       {
+        "command": "commitModel.toggle",
+        "title": "Turn On / Off",
+        "category": "Commit Model"
+      },
+      {
         "command": "commitModel.start",
-        "title": "Start",
+        "title": "Turn On",
         "category": "Commit Model"
       },
       {
         "command": "commitModel.stop",
-        "title": "Stop",
+        "title": "Turn Off",
         "category": "Commit Model"
       },
       {
         "command": "commitModel.generate",
-        "title": "Generate Commit Message",
+        "title": "Suggest Commit Message in the Commit Box",
         "category": "Commit Model",
         "icon": "$(sparkle)"
       }
@@ -75,12 +80,14 @@
   "scripts": {
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
-    "package": "vsce package"
+    "package": "vsce package",
+    "test:smoke": "npm run compile && node test/smoke.mjs ../merged_weights_quantized_model/quantized-model/commit-model-Q4_K_M.gguf",
+    "test:integration": "npm run compile && node test/integration/runTest.js"
   },
-  "dependencies": {},
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.90.0",
+    "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^3.0.0",
     "typescript": "^5.6.0"
   }

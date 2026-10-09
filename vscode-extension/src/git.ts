@@ -2,13 +2,15 @@
 import * as vscode from "vscode";
 
 // The subset of the Git extension API used here (full typings: vscode's extensions/git/src/api/git.d.ts).
-interface Repository {
+export interface Repository {
     readonly rootUri: vscode.Uri;
     readonly inputBox: { value: string };
     diff(cached?: boolean): Promise<string>;
 }
 
 interface GitAPI {
+    /** The git executable VS Code uses. */
+    readonly git: { readonly path: string };
     readonly repositories: Repository[];
     getRepository(uri: vscode.Uri): Repository | null;
 }
@@ -35,6 +37,15 @@ export function pickRepository(sourceControl?: { rootUri?: vscode.Uri }): Reposi
     }
     const activeFile = vscode.window.activeTextEditor?.document.uri;
     return (activeFile && git.getRepository(activeFile)) || git.repositories[0];
+}
+
+/** Path to the git executable VS Code uses, if the Git extension is available. */
+export function gitPath(): string | undefined {
+    try {
+        return getGitApi().git.path;
+    } catch {
+        return undefined;
+    }
 }
 
 export function stagedDiff(repository: Repository): Promise<string> {
