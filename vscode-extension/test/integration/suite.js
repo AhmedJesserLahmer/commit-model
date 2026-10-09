@@ -49,6 +49,7 @@ function write(file, content) {
     fs.writeFileSync(path.join(repo, file), content);
 }
 
+const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const suggestionIn = (output) => (output.match(/Commit Model suggests:\s+(.+)/) ?? [])[1]?.trim();
 
 function serverRunning() {
@@ -92,7 +93,7 @@ const tests = [
         const suggestion = suggestionIn(output);
         assert.match(suggestion ?? "", VALID_MESSAGE, `no valid suggestion in:\n${output}`);
         assert.match(output, /Commit with this message\? \[Y\/N\]/);
-        assert.ok(output.includes(`✅ Committed with message: "${suggestion}"`), output);
+        assert.match(output, new RegExp(`✓ Committed [0-9a-f]{7,}  ${escape(suggestion)}`), output);
         assert.strictEqual(lastCommitSubject(), suggestion);
         assert.strictEqual(stagedFiles(), "");
         console.log(`      suggested and committed: ${suggestion}`);
@@ -109,7 +110,7 @@ const tests = [
         write("README.md", "# Math utils\n\nSmall helpers.\n");
         const output = gitInTerminal(["add", "README.md"], "n\ndocs: add usage notes\n");
         assert.match(output, /Your commit message/);
-        assert.ok(output.includes('✅ Committed with message: "docs: add usage notes"'), output);
+        assert.match(output, /✓ Committed [0-9a-f]{7,}  docs: add usage notes/, output);
         assert.strictEqual(lastCommitSubject(), "docs: add usage notes");
     }],
 
@@ -162,7 +163,7 @@ const tests = [
             const clean = output.replace(/\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07/g, "");
             const suggestion = suggestionIn(clean);
             assert.match(suggestion ?? "", VALID_MESSAGE, `no suggestion in the terminal output:\n${clean}`);
-            assert.ok(clean.includes("✅ Committed with message"), clean);
+            assert.match(clean, /✓ Committed [0-9a-f]{7,}/, clean);
             assert.strictEqual(lastCommitSubject(), suggestion);
         } finally {
             terminal.dispose();

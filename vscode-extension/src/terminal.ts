@@ -16,6 +16,7 @@ const realGit = process.env.COMMIT_MODEL_REAL_GIT || "git";
 const color = (code: number, text: string) => (process.stdout.isTTY ? `\x1b[${code}m${text}\x1b[0m` : text);
 const dim = (text: string) => color(2, text);
 const bold = (text: string) => color(1, text);
+const green = (text: string) => color(32, text);
 
 function git(args: string[]): { status: number | null; stdout: string; stderr: string } {
     const result = spawnSync(realGit, args, { encoding: "utf8" });
@@ -98,7 +99,8 @@ async function askYesNo(answers: Answers): Promise<"y" | "n" | undefined> {
 function commit(message: string): void {
     const result = git(["commit", "-q", "-m", message]);
     if (result.status === 0) {
-        console.log(`✅ Committed with message: "${message}"`);
+        const hash = git(["rev-parse", "--short", "HEAD"]).stdout.trim();
+        console.log(`${green("✓ Committed")} ${dim(hash)}  ${message}`);
     } else {
         console.log(`Commit failed:\n${(result.stderr || result.stdout).trim()}`);
     }

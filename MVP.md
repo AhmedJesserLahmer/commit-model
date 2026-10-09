@@ -14,7 +14,7 @@ Everything happens in VS Code's terminal, and only right after `git add`. Nothin
    $ git add .
    Commit Model suggests:  feat: add subtract function
    Commit with this message? [Y/N] y
-   ✅ Committed with message: "feat: add subtract function"
+   ✓ Committed 3f2a1bc  feat: add subtract function
    ```
    - **Y:** runs `git commit` with the suggestion.
    - **N:** asks `Your commit message (empty to cancel):` and commits that; empty cancels.

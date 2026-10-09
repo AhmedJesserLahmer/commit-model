@@ -16,7 +16,7 @@ and the model (~1GB), then runs the server as a background process while the mod
    $ git add .
    Commit Model suggests:  feat: add subtract function
    Commit with this message? [Y/N] y
-   ✅ Committed with message: "feat: add subtract function"
+   ✓ Committed 3f2a1bc  feat: add subtract function
    ```
    **Y** commits with the suggestion; **N** lets you type your own message (empty cancels).
 3. Click **Commit Model: On** to turn it off and free the memory.
