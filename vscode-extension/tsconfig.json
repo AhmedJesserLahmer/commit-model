@@ -1,7 +1,5 @@
 {
   "compilerOptions": {
-    // node16 keeps `await import("node-llama-cpp")` as a real dynamic import. node-llama-cpp is
-    // ESM-only, and CommonJS output would turn the import into a require() that fails.
     "module": "node16",
     "moduleResolution": "node16",
     "target": "ES2022",

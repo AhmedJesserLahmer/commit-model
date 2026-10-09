@@ -20,10 +20,10 @@ const GENERATED_FILE_PATTERNS = [
     /\.svg$/, /\.snap$/,
 ];
 
-/** Minimal tokenizer interface; node-llama-cpp's LlamaModel satisfies it. */
+/** The model's own tokenizer (served by llama-server's /tokenize and /detokenize). */
 export interface Tokenizer {
-    tokenize(text: string): readonly number[];
-    detokenize(tokens: readonly number[]): string;
+    tokenize(text: string): Promise<number[]>;
+    detokenize(tokens: number[]): Promise<string>;
 }
 
 function sliceCodePoints(text: string, end: number): string {
@@ -75,9 +75,10 @@ export function buildDiff(diff: string): string | null {
  * Mirrors the training-time truncation: `reserveTokens` stands in for the commit message, so the
  * instruction and trailing "Commit message:" always survive.
  */
-export function fitPrompt(tokenizer: Tokenizer, diff: string, reserveTokens = MAX_NEW_TOKENS): string {
-    const templateTokens = tokenizer.tokenize(PROMPT_TEMPLATE.replace("{diff}", "")).length;
+export async function fitPrompt(tokenizer: Tokenizer, diff: string, reserveTokens = MAX_NEW_TOKENS): Promise<string> {
+    const templateTokens = (await tokenizer.tokenize(PROMPT_TEMPLATE.replace("{diff}", ""))).length;
     const budget = Math.max(SEQ_LEN - templateTokens - reserveTokens - 8, 0);
-    const diffTokens = tokenizer.tokenize(diff).slice(0, budget);
-    return PROMPT_TEMPLATE.replace("{diff}", () => tokenizer.detokenize(diffTokens));
+    const diffTokens = (await tokenizer.tokenize(diff)).slice(0, budget);
+    const truncatedDiff = await tokenizer.detokenize(diffTokens);
+    return PROMPT_TEMPLATE.replace("{diff}", () => truncatedDiff);
 }

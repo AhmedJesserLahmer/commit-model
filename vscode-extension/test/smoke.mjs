@@ -3,10 +3,12 @@
 // Usage (after `npm run compile`):
 //   node test/smoke.mjs <model.gguf> [test.jsonl] [count] [expected.jsonl]
 //
-// expected.jsonl: optional {"pred": ...} lines from another run of the same model (e.g. llama.cpp's
-// llama-server) to compare against, line by line.
+// expected.jsonl: optional {"pred": ...} lines from another run to compare against, line by line.
+// The llama.cpp engine is downloaded on first run into $COMMIT_MODEL_STORAGE (default ~/.cache/commit-model-smoke).
 import { readFileSync } from "fs";
 import { createRequire } from "module";
+import { homedir } from "os";
+import { join } from "path";
 
 const require = createRequire(import.meta.url);
 const { ModelEngine } = require("../dist/engine.js");
@@ -24,7 +26,15 @@ const expected = expectedFile ? readJsonl(expectedFile) : [];
 
 const engine = new ModelEngine();
 const started = Date.now();
-await engine.start({ modelPath, modelUri: "", downloadDir: "", gpu: "auto" }, () => {});
+const storageDir = process.env.COMMIT_MODEL_STORAGE ?? join(homedir(), ".cache", "commit-model-smoke");
+let lastLine = "";
+await engine.start({ modelPath, modelUri: "", storageDir, gpu: process.env.COMMIT_MODEL_GPU ?? "auto" }, (phase) => {
+    const line = phase.phase === "downloading" ? `downloading ${phase.what}` : "loading";
+    if (line !== lastLine) {
+        console.log(`  ${line}...`);
+        lastLine = line;
+    }
+});
 console.log(`Model loaded in ${((Date.now() - started) / 1000).toFixed(1)}s\n`);
 
 let matches = 0;

@@ -1,17 +1,24 @@
 {
   "name": "commit-model",
   "displayName": "Commit Model",
-  "description": "Writes Conventional Commits messages from your staged changes with a small local model. Runs offline on your machine.",
+  "description": "Writes Conventional Commits messages from your staged changes with a small local model. Runs offline on your machine; the model and the llama.cpp engine download on first start.",
   "version": "0.1.0",
   "publisher": "commit-model",
   "license": "MIT",
   "engines": {
     "vscode": "^1.90.0"
   },
-  "categories": ["SCM Providers", "Machine Learning"],
+  "categories": [
+    "SCM Providers",
+    "Machine Learning"
+  ],
   "main": "./dist/extension.js",
-  "activationEvents": ["onStartupFinished"],
-  "extensionDependencies": ["vscode.git"],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "extensionDependencies": [
+    "vscode.git"
+  ],
   "contributes": {
     "commands": [
       {
@@ -55,7 +62,10 @@
         },
         "commitModel.gpu": {
           "type": "string",
-          "enum": ["auto", "cpu"],
+          "enum": [
+            "auto",
+            "cpu"
+          ],
           "default": "auto",
           "description": "Use the GPU when one is available (auto), or always run on the CPU."
         }
@@ -67,9 +77,7 @@
     "watch": "tsc -watch -p .",
     "package": "vsce package"
   },
-  "dependencies": {
-    "node-llama-cpp": "^3.22.1"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.90.0",

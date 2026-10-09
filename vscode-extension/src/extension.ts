@@ -1,12 +1,13 @@
-import * as fs from "fs/promises";
-import * as path from "path";
 import * as vscode from "vscode";
 
 import { EngineOptions, ModelEngine } from "./engine";
 import { pickRepository, setCommitMessage, stagedDiff } from "./git";
 import { buildDiff } from "./prompt";
 
-const engine = new ModelEngine();
+const engine = new ModelEngine((reason) => {
+    setStatus("off");
+    vscode.window.showWarningMessage(`Commit Model: ${reason}`);
+});
 let statusBar: vscode.StatusBarItem;
 let generating = false;
 
@@ -33,7 +34,7 @@ type Status = "off" | "downloading" | "loading" | "ready" | "generating";
 function setStatus(status: Status, detail = ""): void {
     const view: Record<Status, [string, string, string | undefined]> = {
         off: ["$(circle-slash) Commit Model", "Model not loaded. Click to start.", "commitModel.start"],
-        downloading: [`$(cloud-download) Commit Model ${detail}`, "Downloading the model (first start only)", undefined],
+        downloading: [`$(cloud-download) Commit Model ${detail}`, "Downloading (first start only)", undefined],
         loading: ["$(loading~spin) Commit Model", "Loading the model", undefined],
         ready: ["$(sparkle) Commit Model", "Model ready. Click to stop and free memory.", "commitModel.stop"],
         generating: ["$(loading~spin) Commit Model", "Writing a commit message", undefined],
@@ -41,16 +42,19 @@ function setStatus(status: Status, detail = ""): void {
     [statusBar.text, statusBar.tooltip, statusBar.command] = view[status];
 }
 
-async function engineOptions(context: vscode.ExtensionContext): Promise<EngineOptions> {
+function engineOptions(context: vscode.ExtensionContext): EngineOptions {
     const config = vscode.workspace.getConfiguration("commitModel");
     const modelPath = config.get<string>("modelPath", "").trim();
     const modelUri = config.get<string>("modelUri", "").trim();
     if (!modelPath && (!modelUri || modelUri.includes("<username>"))) {
         throw new Error("No model configured. Set commitModel.modelPath (local .gguf) or commitModel.modelUri in Settings.");
     }
-    const downloadDir = path.join(context.globalStorageUri.fsPath, "models");
-    await fs.mkdir(downloadDir, { recursive: true });
-    return { modelPath, modelUri, downloadDir, gpu: config.get<"auto" | "cpu">("gpu", "auto") };
+    return {
+        modelPath,
+        modelUri,
+        storageDir: context.globalStorageUri.fsPath,
+        gpu: config.get<"auto" | "cpu">("gpu", "auto"),
+    };
 }
 
 /** Starts the model with a progress notification. Returns false if it failed (error already shown). */
@@ -60,14 +64,14 @@ async function startWithProgress(context: vscode.ExtensionContext): Promise<bool
         return true;
     }
     try {
-        const options = await engineOptions(context);
+        const options = engineOptions(context);
         await vscode.window.withProgress(
             { location: vscode.ProgressLocation.Notification, title: "Commit Model" },
             (progress) => engine.start(options, (phase) => {
                 if (phase.phase === "downloading") {
-                    const percent = `${Math.floor(phase.percent)}%`;
-                    setStatus("downloading", percent);
-                    progress.report({ message: `Downloading the model (first start only)… ${percent}` });
+                    const what = phase.what === "engine" ? "the engine (~30MB)" : "the model (~1GB)";
+                    setStatus("downloading", `${phase.percent}%`);
+                    progress.report({ message: `Downloading ${what}, first start only… ${phase.percent}%` });
                 } else {
                     setStatus("loading");
                     progress.report({ message: "Loading the model…" });

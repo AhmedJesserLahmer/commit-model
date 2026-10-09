@@ -6,8 +6,9 @@ installed as one extension that handles the engine, model download and running.
 **Done:**
 - Data filtering, LoRA fine-tuning, evaluation (`results.md`)
 - Merge + 4-bit quantization, run locally (`merged_weights_quantized_model/`); no measurable quality loss
-- VS Code extension MVP code (`vscode-extension/`, details in `MVP.md`): node-llama-cpp engine, Start / Stop /
-  Generate commands. Engine verified outside VS Code on 200 test examples (same quality as fp32).
+- VS Code extension MVP code (`vscode-extension/`, details in `MVP.md`): llama.cpp's `llama-server` as the
+  engine (downloaded per platform on first start), Start / Stop / Generate commands. Engine verified outside
+  VS Code, including inside Snap VS Code's runtime.
 
 ## 1. Finish the MVP
 - **Task:** upload `commit-model-Q4_K_M.gguf` to Hugging Face and set the extension's default `modelUri`;
@@ -26,9 +27,9 @@ installed as one extension that handles the engine, model download and running.
   and keeps the working engine from breaking.
 
 ## 4. Package and publish the extension
-- **Task:** per-platform `.vsix` builds (node-llama-cpp's engine binaries differ per OS/GPU; `node_modules`
-  is ~900MB with every CUDA variant), test on a machine without an NVIDIA GPU, publish to the Marketplace.
-- **Why:** users install from the Marketplace; one package with every platform's binaries would be far too big.
+- **Task:** package the `.vsix` (no native code inside: the engine downloads per platform), test on Windows,
+  macOS and a machine without a GPU, publish to the Marketplace.
+- **Why:** users install from the Marketplace; the engine download has only been tested on Linux so far.
 
 ## 5. Improve the model
 - **Task:** cap `fix` examples in the training data, fine-tune again, compare with `results.md`, then

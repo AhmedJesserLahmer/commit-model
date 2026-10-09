@@ -1,4 +1,9 @@
-# VS Code extension MVP (node-llama-cpp engine)
+# VS Code extension MVP (llama-server engine)
+
+> **Update:** the engine switched from node-llama-cpp to llama.cpp's `llama-server`, run as a separate
+> process and downloaded per platform on first start (~12-33MB instead of ~900MB). node-llama-cpp
+> can't load inside Snap VS Code (Ubuntu's default install): `GLIBC_2.32 not found`. Details in
+> `vscode-extension/README.md`. The rest of this plan is unchanged.
 
 ## Context
 
