@@ -92,12 +92,27 @@ match what the server announced is discarded with a clear error, so an interrupt
 a broken model. `commitModel.modelPath` (a local file) overrides it, for development. The Python CLI uses
 the same default, into `~/.cache/commit-model`.
 
-## Package
+## Package and publishing
 
-`npx vsce package --skip-license --allow-missing-repository` builds `commit-model.vsix`: 27 KB, 14 files
-(compiled code, `package.json`, README; `.vscodeignore` keeps sources, tests and build tools out). The
-engine and model download on first start, so one package serves every OS. Install it by hand with
-Extensions → "…" → Install from VSIX.
+`npx vsce package` builds `commit-model.vsix`: 31 KB, 18 files (compiled code, `package.json`, README,
+CHANGELOG, LICENSE, NOTICE, icon; `.vscodeignore` keeps sources, tests and build tools out). The engine
+and model download on first start, so one package serves every OS. Tested: the unpacked final package
+passes the integration suite (17/17).
+
+Marketplace metadata in `package.json`: marked **preview** (macOS untested), icon (`icon.png`, a commit
+graph with a sparkle), repository/issues links to GitHub, keywords. The README is the Marketplace page.
+
+Licensing: the extension's code is MIT (`LICENSE`). `NOTICE.md` credits what it downloads: the model
+(Qwen2.5-Coder-1.5B-Instruct, Apache 2.0, fine-tuned on CommitBench, CC BY-NC 4.0, so non-commercial),
+llama.cpp (MIT), and on Windows Microsoft's Visual C++ runtime. `hf_model_card/README.md` is a model card
+for the Hugging Face repo, licensed CC BY-NC 4.0 (the repo currently says MIT): to upload by the user.
+
+To publish (the user does it):
+1. Create a publisher at marketplace.visualstudio.com/manage; put its ID in `"publisher"` in
+   `vscode-extension/package.json` (currently the placeholder `commit-model`).
+2. Create an Azure DevOps personal access token (Organization: All accessible organizations; Scope:
+   Marketplace → Manage).
+3. In `vscode-extension/`: `npx vsce login <publisher>`, then `npx vsce publish`.
 
 ## Code
 

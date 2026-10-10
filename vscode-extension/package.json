@@ -1,16 +1,41 @@
 {
   "name": "commit-model",
   "displayName": "Commit Model",
-  "description": "Writes Conventional Commits messages from your staged changes with a small local model. Runs offline on your machine; the model and the llama.cpp engine download on first start.",
+  "description": "Suggests a Conventional Commits message right after `git add` in the terminal: Y commits it. A small local model, fully offline.",
   "version": "0.1.0",
+  "preview": true,
   "publisher": "commit-model",
   "license": "MIT",
+  "icon": "icon.png",
+  "galleryBanner": {
+    "color": "#181A26",
+    "theme": "dark"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AhmedJesserLahmer/commit-model.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AhmedJesserLahmer/commit-model/issues"
+  },
+  "homepage": "https://github.com/AhmedJesserLahmer/commit-model#readme",
+  "keywords": [
+    "git",
+    "commit",
+    "commit message",
+    "conventional commits",
+    "offline",
+    "local model",
+    "llama.cpp",
+    "terminal"
+  ],
   "engines": {
     "vscode": "^1.90.0"
   },
   "categories": [
     "SCM Providers",
-    "Machine Learning"
+    "Machine Learning",
+    "Other"
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
