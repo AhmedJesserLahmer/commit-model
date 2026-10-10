@@ -1,4 +1,4 @@
-# VS Code extension MVP
+# VS Code extension MVP: Offhand
 
 Goal: the easiest possible experience. Install one VS Code extension; it downloads the engine and the
 model itself, runs fully offline, and turns staged changes into commits with one keystroke.
@@ -7,12 +7,12 @@ model itself, runs fully offline, and turns staged changes into commits with one
 
 Everything happens in VS Code's terminal, and only right after `git add`. Nothing pops up in the editor.
 
-1. **Bottom-left toggle:** "Commit Model: Off" / "Commit Model: On". Clicking it turns it on (starts the
+1. **Bottom-left toggle:** "Offhand: Off" / "Offhand: On". Clicking it turns it on (starts the
    model) or off (stops it and frees memory). Download and loading progress show in the toggle itself.
 2. **In the terminal**, after a successful `git add` while it's on:
    ```
    $ git add .
-   Commit Model suggests:  feat: add subtract function
+   Offhand suggests:  feat: add subtract function
    Commit with this message? [Y/N] y
    ✓ Committed 3f2a1bc  feat: add subtract function
    ```
@@ -45,9 +45,9 @@ texts as on Linux and macOS.
 Windows also needs the Microsoft Visual C++ runtime for llama.cpp, which a fresh Windows doesn't have
 (many PCs do, from other apps). The extension checks for it before starting; if it's missing it explains
 in plain words and offers "Install it": downloads Microsoft's official installer, runs it (Windows asks
-for permission), then turns Commit Model on. The Python CLI says the same with the download link.
+for permission), then turns Offhand on. The Python CLI says the same with the download link.
 
-Activity log: Output panel → "Commit Model".
+Activity log: Output panel → "Offhand".
 
 ## Suggestion cleanup
 
@@ -94,25 +94,32 @@ the same default, into `~/.cache/commit-model`.
 
 ## Package and publishing
 
-`npx vsce package` builds `commit-model.vsix`: 31 KB, 18 files (compiled code, `package.json`, README,
-CHANGELOG, LICENSE, NOTICE, icon; `.vscodeignore` keeps sources, tests and build tools out). The engine
-and model download on first start, so one package serves every OS. Tested: the unpacked final package
-passes the integration suite (17/17).
+**Offhand** (chosen by the user; icon and banner made with Claude Design, in `Icon+banner/`):
+extension ID `JesserLahmer.offhand`, settings `offhand.*`, commands `offhand.*` (renamed from
+`commit-model` / `commitModel.*` before the first release, when it costs nothing). Icon:
+`Icon+banner/offhand-256.png` as `vscode-extension/icon.png` (a cream toggle on crimson, echoing the
+On/Off toggle). Marketplace header color `#3A0F14` (the banner's background), dark theme. The banner
+(`images/banner.png`, 1280×320) heads the README via its GitHub URL, so it shows once the repo is pushed.
+Tagline: "Free · Lightweight commit model · Your data stays local and private".
 
-Marketplace metadata in `package.json`: marked **preview** (macOS untested), icon (`icon.png`, a commit
-graph with a sparkle), repository/issues links to GitHub, keywords. The README is the Marketplace page.
+`npx vsce package --out offhand.vsix` builds the package: 40 KB, 18 files (compiled code,
+`package.json`, README, CHANGELOG, LICENSE, NOTICE, icon; `.vscodeignore` keeps sources, tests, images
+and build tools out). The engine and model download on first start, so one package serves every OS.
+Tested: the unpacked final package passes the integration suite (17/17), both with a local model and as
+a new user downloading the model from Hugging Face.
+
+Marketplace metadata in `package.json`: marked **preview** (macOS untested), repository/issues links to
+GitHub, keywords. The README is the Marketplace page.
 
 Licensing: the extension's code is MIT (`LICENSE`). `NOTICE.md` credits what it downloads: the model
 (Qwen2.5-Coder-1.5B-Instruct, Apache 2.0, fine-tuned on CommitBench, CC BY-NC 4.0, so non-commercial),
 llama.cpp (MIT), and on Windows Microsoft's Visual C++ runtime. `hf_model_card/README.md` is a model card
 for the Hugging Face repo, licensed CC BY-NC 4.0 (the repo currently says MIT): to upload by the user.
 
-To publish (the user does it):
-1. Create a publisher at marketplace.visualstudio.com/manage; put its ID in `"publisher"` in
-   `vscode-extension/package.json` (currently the placeholder `commit-model`).
-2. Create an Azure DevOps personal access token (Organization: All accessible organizations; Scope:
-   Marketplace → Manage).
-3. In `vscode-extension/`: `npx vsce login <publisher>`, then `npx vsce publish`.
+Publishing (the user does it): publisher **`JesserLahmer`** created on marketplace.visualstudio.com
+(under the university Microsoft account: adding a personal account as a member keeps access later).
+Simplest: Manage Publishers → New extension → Visual Studio Code → upload `offhand.vsix`. Alternative
+for updates: an Azure DevOps token (Marketplace → Manage), `npx vsce login JesserLahmer`, `npx vsce publish`.
 
 ## Code
 

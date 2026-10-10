@@ -1,4 +1,4 @@
-// Status bar toggle: "Commit Model: On" loads the model; then, in VS Code's terminals, every successful
+// Status bar toggle: "Offhand: On" loads the model; then, in VS Code's terminals, every successful
 // `git add` is followed by a suggested commit message and a Y/N question (see terminal.ts).
 import * as vscode from "vscode";
 
@@ -15,7 +15,7 @@ import { TerminalSetup, setUpTerminals } from "./terminalSetup";
 const engine = new ModelEngine((reason) => {
     void turnOff();
     log(`engine stopped unexpectedly: ${reason}`);
-    ui.warn(`Commit Model turned off: ${reason}`);
+    ui.warn(`Offhand turned off: ${reason}`);
 });
 let statusBar: vscode.StatusBarItem;
 let extensionContext: vscode.ExtensionContext;
@@ -35,7 +35,7 @@ export const ui = {
         (await vscode.window.showErrorMessage(message, action)) === action,
 };
 
-/** Activity log in the Output panel ("Commit Model"). */
+/** Activity log in the Output panel ("Offhand"). */
 function log(line: string): void {
     output?.appendLine(`[${new Date().toLocaleTimeString()}] ${line}`);
 }
@@ -45,13 +45,13 @@ export function activate(context: vscode.ExtensionContext): { ui: typeof ui; ter
     // Commands first: if anything later in activation failed, they'd otherwise never be registered and
     // users would only see "command not found".
     context.subscriptions.push(
-        vscode.commands.registerCommand("commitModel.toggle", () => (enabled ? turnOff() : turnOn())),
-        vscode.commands.registerCommand("commitModel.start", turnOn),
-        vscode.commands.registerCommand("commitModel.stop", turnOff),
-        vscode.commands.registerCommand("commitModel.generate", (sourceControl?: { rootUri?: vscode.Uri }) =>
+        vscode.commands.registerCommand("offhand.toggle", () => (enabled ? turnOff() : turnOn())),
+        vscode.commands.registerCommand("offhand.start", turnOn),
+        vscode.commands.registerCommand("offhand.stop", turnOff),
+        vscode.commands.registerCommand("offhand.generate", (sourceControl?: { rootUri?: vscode.Uri }) =>
             fillCommitBox(sourceControl)),
     );
-    output = vscode.window.createOutputChannel("Commit Model");
+    output = vscode.window.createOutputChannel("Offhand");
     statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
     context.subscriptions.push(output, statusBar);
     refreshStatus();
@@ -62,7 +62,7 @@ export function activate(context: vscode.ExtensionContext): { ui: typeof ui; ter
     } catch (error) {
         // The ✨ button still works without the terminal prompt.
         log(`terminal setup failed: ${errorMessage(error)}`);
-        ui.warn(`Commit Model: the terminal prompt after \`git add\` couldn't be set up: ${errorMessage(error)}`);
+        ui.warn(`Offhand: the terminal prompt after \`git add\` couldn't be set up: ${errorMessage(error)}`);
     }
     return { ui, terminals };
 }
@@ -82,24 +82,24 @@ function setStatus(text: string, tooltip: string, command?: string): void {
 
 function refreshStatus(): void {
     if (enabled) {
-        setStatus("$(sparkle) Commit Model: On",
+        setStatus("$(sparkle) Offhand: On",
             "After each `git add` in the terminal, suggests a commit message. Click to turn off and free memory.",
-            "commitModel.toggle");
+            "offhand.toggle");
     } else {
-        setStatus("$(circle-large-outline) Commit Model: Off",
+        setStatus("$(circle-large-outline) Offhand: Off",
             "Click to turn on: after each `git add` in the terminal, suggests a commit message.",
-            "commitModel.toggle");
+            "offhand.toggle");
     }
 }
 
 // --- Turning on and off -------------------------------------------------------------------------------
 
 function engineOptions(): EngineOptions {
-    const config = vscode.workspace.getConfiguration("commitModel");
+    const config = vscode.workspace.getConfiguration("offhand");
     const modelPath = config.get<string>("modelPath", "").trim();
     const modelUri = config.get<string>("modelUri", "").trim();
     if (!modelPath && (!modelUri || modelUri.includes("<username>"))) {
-        throw new Error("No model configured. Set commitModel.modelPath (local .gguf) or commitModel.modelUri in Settings.");
+        throw new Error("No model configured. Set offhand.modelPath (local .gguf) or offhand.modelUri in Settings.");
     }
     return {
         modelPath,
@@ -119,9 +119,9 @@ async function startEngine(): Promise<boolean> {
         await engine.start(options, (phase) => {
             if (phase.phase === "downloading") {
                 const what = phase.what === "engine" ? "the engine (~30MB)" : "the model (~1GB)";
-                setStatus(`$(cloud-download) Commit Model ${phase.percent}%`, `Downloading ${what}, first start only`);
+                setStatus(`$(cloud-download) Offhand ${phase.percent}%`, `Downloading ${what}, first start only`);
             } else {
-                setStatus("$(loading~spin) Commit Model: Starting", "Loading the model");
+                setStatus("$(loading~spin) Offhand: Starting", "Loading the model");
             }
         });
         return true;
@@ -130,7 +130,7 @@ async function startEngine(): Promise<boolean> {
         if (error instanceof MissingRuntimeError) {
             void offerRuntimeInstall();
         } else {
-            ui.error(`Commit Model couldn't start: ${errorMessage(error)}`);
+            ui.error(`Offhand couldn't start: ${errorMessage(error)}`);
         }
         return false;
     } finally {
@@ -140,11 +140,11 @@ async function startEngine(): Promise<boolean> {
 
 /**
  * Windows without the Microsoft Visual C++ runtime: offers to download Microsoft's installer and run it
- * (Windows asks for permission), then turns Commit Model on.
+ * (Windows asks for permission), then turns Offhand on.
  */
 async function offerRuntimeInstall(): Promise<void> {
     const install = await ui.offerInstall(
-        "Commit Model needs the Microsoft Visual C++ runtime, which isn't installed on this PC. " +
+        "Offhand needs the Microsoft Visual C++ runtime, which isn't installed on this PC. " +
         "It's a free Microsoft component that many apps use.",
         "Install it",
     );
@@ -155,8 +155,8 @@ async function offerRuntimeInstall(): Promise<void> {
         const installer = path.join(extensionContext.globalStorageUri.fsPath, "vc_redist.x64.exe");
         await fs.mkdir(path.dirname(installer), { recursive: true });
         await downloadFile(MissingRuntimeError.INSTALLER_URL, installer, (percent) =>
-            setStatus(`$(cloud-download) Commit Model ${percent}%`, "Downloading the Microsoft Visual C++ runtime"));
-        setStatus("$(loading~spin) Commit Model: Installing", "Installing the Microsoft Visual C++ runtime");
+            setStatus(`$(cloud-download) Offhand ${percent}%`, "Downloading the Microsoft Visual C++ runtime"));
+        setStatus("$(loading~spin) Offhand: Installing", "Installing the Microsoft Visual C++ runtime");
         log("installing the Microsoft Visual C++ runtime");
         const code = await new Promise<number | null>((resolve, reject) => {
             const child = spawn(installer, ["/install", "/passive", "/norestart"]);
@@ -171,7 +171,7 @@ async function offerRuntimeInstall(): Promise<void> {
         await turnOn();
     } catch (error) {
         log(`runtime install failed: ${errorMessage(error)}`);
-        ui.error(`Commit Model couldn't install the Microsoft Visual C++ runtime: ${errorMessage(error)}. ` +
+        ui.error(`Offhand couldn't install the Microsoft Visual C++ runtime: ${errorMessage(error)}. ` +
             `You can install it yourself from ${MissingRuntimeError.INSTALLER_URL}`);
     } finally {
         refreshStatus();
@@ -217,24 +217,24 @@ async function fillCommitBox(sourceControl?: { rootUri?: vscode.Uri }): Promise<
     try {
         const repository = pickRepository(sourceControl);
         if (!repository) {
-            ui.warn("Commit Model: no Git repository is open.");
+            ui.warn("Offhand: no Git repository is open.");
             return;
         }
         const diff = await stagedDiff(repository);
         if (!diff.trim()) {
-            ui.info("Commit Model: nothing is staged. Stage your changes first (e.g. git add .).");
+            ui.info("Offhand: nothing is staged. Stage your changes first (e.g. git add .).");
             return;
         }
         const filtered = buildDiff(diff);
         if (filtered === null) {
-            ui.info("Commit Model: only lockfiles or generated files are staged, so there's nothing to describe.");
+            ui.info("Offhand: only lockfiles or generated files are staged, so there's nothing to describe.");
             return;
         }
         await turnOn();
         if (!enabled) {
             return;
         }
-        setStatus("$(loading~spin) Commit Model: Writing…", "Writing a commit message");
+        setStatus("$(loading~spin) Offhand: Writing…", "Writing a commit message");
         const message = await vscode.window.withProgress(
             { location: vscode.ProgressLocation.SourceControl },
             () => engine.generate(filtered),
@@ -243,7 +243,7 @@ async function fillCommitBox(sourceControl?: { rootUri?: vscode.Uri }): Promise<
         setCommitMessage(repository, message);
     } catch (error) {
         log(`error: ${errorMessage(error)}`);
-        ui.error(`Commit Model: ${errorMessage(error)}`);
+        ui.error(`Offhand: ${errorMessage(error)}`);
     } finally {
         generating = false;
         refreshStatus();

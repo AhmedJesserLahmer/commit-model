@@ -1,14 +1,14 @@
 {
-  "name": "commit-model",
-  "displayName": "Commit Model",
-  "description": "Suggests a Conventional Commits message right after `git add` in the terminal: Y commits it. A small local model, fully offline.",
+  "name": "offhand",
+  "displayName": "Offhand",
+  "description": "Free, lightweight commit model: suggests a Conventional Commits message right after `git add` in the terminal. Your data stays local and private.",
   "version": "0.1.0",
   "preview": true,
-  "publisher": "commit-model",
+  "publisher": "JesserLahmer",
   "license": "MIT",
   "icon": "icon.png",
   "galleryBanner": {
-    "color": "#181A26",
+    "color": "#3A0F14",
     "theme": "dark"
   },
   "repository": {
@@ -47,50 +47,50 @@
   "contributes": {
     "commands": [
       {
-        "command": "commitModel.toggle",
+        "command": "offhand.toggle",
         "title": "Turn On / Off",
-        "category": "Commit Model"
+        "category": "Offhand"
       },
       {
-        "command": "commitModel.start",
+        "command": "offhand.start",
         "title": "Turn On",
-        "category": "Commit Model"
+        "category": "Offhand"
       },
       {
-        "command": "commitModel.stop",
+        "command": "offhand.stop",
         "title": "Turn Off",
-        "category": "Commit Model"
+        "category": "Offhand"
       },
       {
-        "command": "commitModel.generate",
+        "command": "offhand.generate",
         "title": "Suggest Commit Message in the Commit Box",
-        "category": "Commit Model",
+        "category": "Offhand",
         "icon": "$(sparkle)"
       }
     ],
     "menus": {
       "scm/title": [
         {
-          "command": "commitModel.generate",
+          "command": "offhand.generate",
           "when": "scmProvider == git",
           "group": "navigation"
         }
       ]
     },
     "configuration": {
-      "title": "Commit Model",
+      "title": "Offhand",
       "properties": {
-        "commitModel.modelUri": {
+        "offhand.modelUri": {
           "type": "string",
           "default": "hf:Jess2005/commit-model-CLI/commit-model-Q4_K_M.gguf",
           "description": "Where the model is downloaded from on first start: hf:<user>/<repo>/<file> (Hugging Face) or an https URL."
         },
-        "commitModel.modelPath": {
+        "offhand.modelPath": {
           "type": "string",
           "default": "",
           "description": "Path to a local .gguf model. When set, it's used instead of downloading modelUri (for development)."
         },
-        "commitModel.gpu": {
+        "offhand.gpu": {
           "type": "string",
           "enum": [
             "auto",

@@ -4,7 +4,7 @@
 
 First release.
 
-- Status bar toggle: **Commit Model: On/Off**.
+- Status bar toggle: **Offhand: On/Off**.
 - After a successful `git add` in VS Code's terminal: a suggested Conventional Commits message and a
   Y/N question. Y commits it; N lets you type your own.
 - Works in bash, zsh, Git Bash, PowerShell and Command Prompt.

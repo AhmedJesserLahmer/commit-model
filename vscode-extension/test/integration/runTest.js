@@ -5,7 +5,7 @@
 //
 // Model: argument, else $COMMIT_MODEL_PATH, else the locally quantized model in this project.
 // COMMIT_MODEL_TEST_DOWNLOAD=1: like a new user instead: no model setting and no downloaded model, so the
-// extension downloads it from Hugging Face (its default commitModel.modelUri) on first start.
+// extension downloads it from Hugging Face (its default offhand.modelUri) on first start.
 // VS Code: $VSCODE_PATH if set, else the installed `code`, else @vscode/test-electron downloads one.
 // Uses a separate test profile in .vscode-test/ with other extensions disabled.
 const { execFileSync } = require("child_process");
@@ -77,7 +77,7 @@ async function main() {
     const download = Boolean(process.env.COMMIT_MODEL_TEST_DOWNLOAD);
     const settings = { "git.autoRepositoryDetection": true };
     if (!download) {
-        settings["commitModel.modelPath"] = modelPath;
+        settings["offhand.modelPath"] = modelPath;
     }
     fs.writeFileSync(path.join(repo, ".vscode", "settings.json"), JSON.stringify(settings, null, 2));
     fs.appendFileSync(path.join(repo, ".git", "info", "exclude"), ".vscode/\n");
@@ -87,7 +87,7 @@ async function main() {
 
     const testRoot = path.join(extensionRoot, ".vscode-test");
     if (download) {
-        const models = path.join(testRoot, "user-data", "User", "globalStorage", "commit-model.commit-model", "models");
+        const models = path.join(testRoot, "user-data", "User", "globalStorage", "jesserlahmer.offhand", "models");
         fs.rmSync(models, { recursive: true, force: true }); // a first start, as for a new user
         console.log("Download mode: the model will be downloaded from Hugging Face");
     }

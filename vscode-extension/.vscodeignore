@@ -9,3 +9,4 @@ tsconfig.json
 .gitignore
 *.vsix
 # Licensing: LICENSE, NOTICE.md and CHANGELOG.md are included in the package.
+images/**

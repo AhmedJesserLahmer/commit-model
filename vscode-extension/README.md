@@ -1,10 +1,14 @@
-# Commit Model
+# Offhand
+
+![Offhand: free, lightweight commit model; your data stays local and private](https://raw.githubusercontent.com/AhmedJesserLahmer/commit-model/HEAD/vscode-extension/images/banner.png)
+
+**Free · Lightweight commit model · Your data stays local and private.**
 
 Stage your changes in VS Code's terminal and get a commit message suggested right there:
 
 ```
 $ git add .
-Commit Model suggests:  feat: add subtract function
+Offhand suggests:  feat: add subtract function
 Commit with this message? [Y/N] y
 ✓ Committed 3f2a1bc  feat: add subtract function
 ```
@@ -17,12 +21,12 @@ your computer.
 
 ## Getting started
 
-1. Click **Commit Model: Off** in the bottom-left status bar to turn it **On**. The first time, it
+1. Click **Offhand: Off** in the bottom-left status bar to turn it **On**. The first time, it
    downloads the engine and the model (about 1 GB, once); progress shows in the status bar.
 2. Open a terminal in VS Code, save your files, and run `git add .`.
 3. Answer **Y** or **N**.
 
-Click **Commit Model: On** to turn it off and free the memory it uses (about 1 GB).
+Click **Offhand: On** to turn it off and free the memory it uses (about 1 GB).
 
 Only `git add` in VS Code's terminal triggers it: other git commands, the + buttons in Source Control,
 scripts, and everything while it's off work exactly as before. Terminals that were open before you
@@ -56,16 +60,16 @@ Microsoft runtime installer.
 
 ## Commands
 
-**Commit Model: Turn On / Off**, **Turn On**, **Turn Off**, **Suggest Commit Message in the Commit Box**
-(Command Palette, Ctrl+Shift+P). Activity log: Output panel → **Commit Model**.
+**Offhand: Turn On / Off**, **Turn On**, **Turn Off**, **Suggest Commit Message in the Commit Box**
+(Command Palette, Ctrl+Shift+P). Activity log: Output panel → **Offhand**.
 
 ## Settings
 
 | Setting | Default | |
 |---|---|---|
-| `commitModel.gpu` | `auto` | `cpu` to always run on the CPU |
-| `commitModel.modelUri` | `hf:Jess2005/commit-model-CLI/commit-model-Q4_K_M.gguf` | Where the model is downloaded from |
-| `commitModel.modelPath` | empty | A local `.gguf` model to use instead of downloading |
+| `offhand.gpu` | `auto` | `cpu` to always run on the CPU |
+| `offhand.modelUri` | `hf:Jess2005/commit-model-CLI/commit-model-Q4_K_M.gguf` | Where the model is downloaded from |
+| `offhand.modelPath` | empty | A local `.gguf` model to use instead of downloading |
 
 ## The model
 

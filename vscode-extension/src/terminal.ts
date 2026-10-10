@@ -1,5 +1,5 @@
 // The terminal prompt. VS Code's integrated terminals get a `git` wrapper (see terminalSetup.ts) that
-// runs this after a successful `git add` while Commit Model is on: it prints a suggested message,
+// runs this after a successful `git add` while Offhand is on: it prints a suggested message,
 // asks Y/N, and commits. On Windows it only writes the suggestion (`--suggest`), see main().
 //
 // Runs as a separate Node process (VS Code's own runtime), configured through environment variables:
@@ -116,21 +116,21 @@ async function suggest(onGenerating: () => void): Promise<Suggestion> {
     }
     const diff = git(["diff", "--cached"]).stdout;
     if (!diff.trim()) {
-        return { status: "info", text: "Commit Model: nothing is staged, so there's no message to suggest. " +
+        return { status: "info", text: "Offhand: nothing is staged, so there's no message to suggest. " +
             "(Changes still open in the editor? Save them first.)" };
     }
     const filtered = buildDiff(diff);
     if (filtered === null) {
-        return { status: "info", text: "Commit Model: only lockfiles or generated files are staged, so there's nothing to describe." };
+        return { status: "info", text: "Offhand: only lockfiles or generated files are staged, so there's nothing to describe." };
     }
     if (!(await isHealthy(url))) {
-        return { status: "info", text: "Commit Model: the model isn't responding. Turn it off and on again in VS Code's status bar." };
+        return { status: "info", text: "Offhand: the model isn't responding. Turn it off and on again in VS Code's status bar." };
     }
     onGenerating();
     const message = await new ServerClient(url).generate(filtered);
     return message
         ? { status: "message", message }
-        : { status: "info", text: "Commit Model couldn't come up with a message for these changes." };
+        : { status: "info", text: "Offhand couldn't come up with a message for these changes." };
 }
 
 /** The conversation in the terminal (Linux, macOS): suggestion, Y/N, commit. */
@@ -143,7 +143,7 @@ async function interactive(): Promise<void> {
     let writing = false;
     const result = await suggest(() => {
         writing = true;
-        process.stdout.write(dim("Commit Model is writing a message…"));
+        process.stdout.write(dim("Offhand is writing a message…"));
     });
     if (writing) {
         process.stdout.write(process.stdout.isTTY ? "\r\x1b[2K" : "\n");
@@ -155,7 +155,7 @@ async function interactive(): Promise<void> {
         return;
     }
     const message = result.message;
-    console.log(`Commit Model suggests:  ${bold(message)}`);
+    console.log(`Offhand suggests:  ${bold(message)}`);
 
     const answers = new Answers();
     try {
@@ -189,7 +189,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-    const text = `Commit Model: ${error instanceof Error ? error.message : String(error)}`;
+    const text = `Offhand: ${error instanceof Error ? error.message : String(error)}`;
     if (process.argv[2] === "--suggest") {
         fs.writeFileSync(process.argv[3], JSON.stringify({ status: "info", text }));
     } else {

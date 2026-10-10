@@ -22,7 +22,7 @@ Writes a [Conventional Commits](https://www.conventionalcommits.org) subject lin
 `fix(scope):`, `docs:` ...) from a staged `git diff`. Small enough to run locally: 986 MB, about 1 GB of
 memory, on a GPU or CPU.
 
-Used by the **Commit Model** VS Code extension, which suggests a message after `git add` in the terminal
+Used by the **Offhand** VS Code extension, which suggests a message after `git add` in the terminal
 and commits it on **Y**. Source and training pipeline: https://github.com/AhmedJesserLahmer/commit-model
 
 ## Files

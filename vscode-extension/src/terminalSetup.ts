@@ -1,16 +1,16 @@
 // Puts a small `git` wrapper first on the PATH of VS Code's integrated terminals, on every platform.
-// It runs the real git; after a successful `git add` in an interactive terminal while Commit Model is
+// It runs the real git; after a successful `git add` in an interactive terminal while Offhand is
 // on, it runs the terminal prompt (dist/terminal.js) with VS Code's own Node runtime.
 //
-// The wrapper is set up once, at activation, so turning Commit Model on or off never requires
+// The wrapper is set up once, at activation, so turning Offhand on or off never requires
 // reopening terminals: on/off is a state file that the wrapper checks.
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 
 const WRAPPER = `#!/usr/bin/env bash
-# Installed by the Commit Model VS Code extension. Runs the real git; after a successful
-# \`git add\` in an interactive terminal while Commit Model is on, suggests a commit message.
+# Installed by the Offhand VS Code extension. Runs the real git; after a successful
+# \`git add\` in an interactive terminal while Offhand is on, suggests a commit message.
 real_git="\${COMMIT_MODEL_REAL_GIT:-}"
 if [ -z "$real_git" ] || [ ! -x "$real_git" ]; then
     # Find git on the PATH without this wrapper's own folder.
@@ -30,8 +30,8 @@ exit "$status"
 // git.cmd before the real git.exe further down the PATH. It hands over to WINDOWS_PROMPT below.
 const WINDOWS_WRAPPER = [
     "@echo off",
-    "rem Installed by the Commit Model VS Code extension. Runs the real git; after a successful",
-    "rem `git add` while Commit Model is on, suggests a commit message.",
+    "rem Installed by the Offhand VS Code extension. Runs the real git; after a successful",
+    "rem `git add` while Offhand is on, suggests a commit message.",
     "setlocal",
     'set "real_git=%COMMIT_MODEL_REAL_GIT%"',
     'if not defined real_git for /f "delims=" %%G in (\'where git.exe\') do if not defined real_git set "real_git=%%G"',
@@ -51,7 +51,7 @@ const WINDOWS_WRAPPER = [
 // conversation and commits. Same texts as terminal.ts. Characters like the check mark are built from
 // their codes: Windows PowerShell 5.1 would misread them in a file without a byte-order mark.
 const WINDOWS_PROMPT = [
-    "# Installed by the Commit Model VS Code extension, run by git.cmd after a successful `git add`.",
+    "# Installed by the Offhand VS Code extension, run by git.cmd after a successful `git add`.",
     "$ErrorActionPreference = 'Stop'",
     "if ([Console]::IsInputRedirected -and -not $env:COMMIT_MODEL_FORCE_PROMPT) { exit 0 }  # scripts, tools",
     "[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false",
@@ -80,18 +80,18 @@ const WINDOWS_PROMPT = [
     "}",
     "",
     "$result = Join-Path $env:TEMP ('commit-model-' + [guid]::NewGuid() + '.json')",
-    "[Console]::Out.Write((Dim \"Commit Model is writing a message$([char]0x2026)\"))",
+    "[Console]::Out.Write((Dim \"Offhand is writing a message$([char]0x2026)\"))",
     "$env:ELECTRON_RUN_AS_NODE = '1'",
     "& $env:COMMIT_MODEL_NODE $env:COMMIT_MODEL_CLIENT --suggest $result | Out-Null  # Out-Null waits for it",
     "Remove-Item env:ELECTRON_RUN_AS_NODE",
     "if ($color) { [Console]::Out.Write(\"$([char]13)$esc[2K\") } else { [Console]::Out.WriteLine() }",
-    "if (-not (Test-Path $result)) { [Console]::Out.WriteLine('Commit Model: no suggestion was produced.'); exit 0 }",
+    "if (-not (Test-Path $result)) { [Console]::Out.WriteLine('Offhand: no suggestion was produced.'); exit 0 }",
     "$suggestion = [IO.File]::ReadAllText($result) | ConvertFrom-Json",
     "Remove-Item $result",
     "if ($suggestion.status -eq 'info') { [Console]::Out.WriteLine((Dim $suggestion.text)) }",
     "if ($suggestion.status -ne 'message') { exit 0 }",
     "$message = $suggestion.message",
-    "[Console]::Out.WriteLine('Commit Model suggests:  ' + (Bold $message))",
+    "[Console]::Out.WriteLine('Offhand suggests:  ' + (Bold $message))",
     "while ($true) {",
     "    $answer = Ask ('Commit with this message? ' + (Bold '[Y/N]') + ' ')",
     "    if ($null -eq $answer) { break }",
@@ -145,7 +145,7 @@ export function setUpTerminals(context: vscode.ExtensionContext, realGit: string
     };
     const collection = context.environmentVariableCollection;
     collection.persistent = false;
-    collection.description = "Commit Model: suggests a commit message after `git add` while it's on";
+    collection.description = "Offhand: suggests a commit message after `git add` while it's on";
     collection.prepend("PATH", binDir + path.delimiter);
     for (const [name, value] of Object.entries(env)) {
         collection.replace(name, value);

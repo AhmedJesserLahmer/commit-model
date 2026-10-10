@@ -60,7 +60,7 @@ function write(file, content) {
 }
 
 const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const suggestionIn = (output) => (output.match(/Commit Model suggests:\s+(.+)/) ?? [])[1]?.trim();
+const suggestionIn = (output) => (output.match(/Offhand suggests:\s+(.+)/) ?? [])[1]?.trim();
 
 function serverRunning() {
     const processes = isWindows
@@ -73,7 +73,7 @@ function serverRunning() {
 const tests = [
     ["the commands are registered", async () => {
         const commands = await vscode.commands.getCommands(true);
-        for (const id of ["commitModel.toggle", "commitModel.start", "commitModel.stop", "commitModel.generate"]) {
+        for (const id of ["offhand.toggle", "offhand.start", "offhand.stop", "offhand.generate"]) {
             assert.ok(commands.includes(id), `missing command ${id}`);
         }
     }],
@@ -95,7 +95,7 @@ const tests = [
     ["while off, git add is plain git add", async () => {
         write("draft.txt", "draft\n");
         const output = gitInTerminal(["add", "draft.txt"]);
-        assert.doesNotMatch(output, /Commit Model/);
+        assert.doesNotMatch(output, /Offhand/);
         assert.strictEqual(stagedFiles(), "draft.txt");
         realGit("reset", "-q");
         fs.rmSync(path.join(repo, "draft.txt"));
@@ -111,16 +111,16 @@ const tests = [
             offers.push(message);
             return true; // the user clicks "Install it"
         };
-        await vscode.commands.executeCommand("commitModel.toggle");
+        await vscode.commands.executeCommand("offhand.toggle");
         await waitFor("the install offer", () => offers.length > 0, 30_000);
         assert.match(offers[0], /Microsoft Visual C\+\+ runtime/);
-        // Real download and install from Microsoft, then Commit Model turns on by itself.
+        // Real download and install from Microsoft, then Offhand turns on by itself.
         // On = the on/off file exists (written once the model has loaded, unlike the server process).
-        await waitFor("the runtime install and Commit Model turning on",
+        await waitFor("the runtime install and Offhand turning on",
             () => fs.existsSync(terminals.env.COMMIT_MODEL_STATE), 600_000);
         assert.ok(serverRunning(), "llama-server isn't running");
         assert.ok(fs.existsSync(path.join(process.env.SystemRoot, "System32", "vcruntime140.dll")));
-        await vscode.commands.executeCommand("commitModel.toggle"); // back off, for the next test
+        await vscode.commands.executeCommand("offhand.toggle"); // back off, for the next test
         await waitFor("llama-server to stop", () => !serverRunning(), 30_000);
     }],
 
@@ -132,7 +132,7 @@ const tests = [
             assert.ok(!fs.existsSync(downloaded), "the model was already downloaded: not a first start");
         }
         const started = Date.now();
-        await vscode.commands.executeCommand("commitModel.toggle");
+        await vscode.commands.executeCommand("offhand.toggle");
         if (downloadMode) {
             const size = fs.statSync(downloaded).size;
             console.log(`      downloaded ${(size / 1e6).toFixed(0)} MB from Hugging Face and started in ${((Date.now() - started) / 1000).toFixed(0)}s`);
@@ -182,9 +182,9 @@ const tests = [
 
     ["other git commands don't prompt", async () => {
         const status = gitInTerminal(["status", "--short"]);
-        assert.doesNotMatch(status, /Commit Model/);
+        assert.doesNotMatch(status, /Offhand/);
         const commit = gitInTerminal(["commit", "-q", "-m", "test: add a test for add"]);
-        assert.doesNotMatch(commit, /Commit Model/);
+        assert.doesNotMatch(commit, /Offhand/);
         assert.strictEqual(lastCommitSubject(), "test: add a test for add");
     }],
 
@@ -197,7 +197,7 @@ const tests = [
     ["no prompt outside an interactive terminal (scripts, tools)", async () => {
         write("script_output.txt", "generated\n");
         const output = gitInTerminal(["add", "script_output.txt"], "", { interactive: false });
-        assert.doesNotMatch(output, /Commit Model/);
+        assert.doesNotMatch(output, /Offhand/);
         realGit("reset", "-q");
         fs.rmSync(path.join(repo, "script_output.txt"));
     }],
@@ -238,7 +238,7 @@ const tests = [
     ["the ✨ button puts a suggestion in the commit box", async () => {
         write("strings.py", "def shout(text):\n    return text.upper()\n\n\ndef whisper(text):\n    return text.lower()\n");
         realGit("add", "strings.py");
-        await vscode.commands.executeCommand("commitModel.generate");
+        await vscode.commands.executeCommand("offhand.generate");
         const gitApi = vscode.extensions.getExtension("vscode.git").exports.getAPI(1);
         const repository = gitApi.repositories.find((r) => samePath(r.rootUri.fsPath, repo));
         assert.match(repository.inputBox.value, VALID_MESSAGE);
@@ -252,27 +252,27 @@ const tests = [
         }
         const downloaded = path.join(path.dirname(terminals.binDir), "models", "commit-model-Q4_K_M.gguf");
         const before = fs.statSync(downloaded).mtimeMs;
-        await vscode.commands.executeCommand("commitModel.toggle"); // off
+        await vscode.commands.executeCommand("offhand.toggle"); // off
         await waitFor("llama-server to stop", () => !serverRunning(), 30_000);
         const started = Date.now();
-        await vscode.commands.executeCommand("commitModel.toggle"); // on again
+        await vscode.commands.executeCommand("offhand.toggle"); // on again
         assert.ok(serverRunning(), "llama-server isn't running");
         assert.strictEqual(fs.statSync(downloaded).mtimeMs, before, "the model was downloaded again");
         console.log(`      second start without downloading: ${((Date.now() - started) / 1000).toFixed(1)}s`);
     }],
 
     ["turning off stops the model, and git add is plain again", async () => {
-        await vscode.commands.executeCommand("commitModel.toggle");
+        await vscode.commands.executeCommand("offhand.toggle");
         await waitFor("llama-server to stop", () => !serverRunning(), 30_000);
         assert.ok(!fs.existsSync(terminals.env.COMMIT_MODEL_STATE));
         write("after_off.txt", "x\n");
         const output = gitInTerminal(["add", "after_off.txt"], "y\n");
-        assert.doesNotMatch(output, /Commit Model/);
+        assert.doesNotMatch(output, /Offhand/);
     }],
 ];
 
 exports.run = async function run() {
-    const api = await vscode.extensions.getExtension("commit-model.commit-model").activate();
+    const api = await vscode.extensions.getExtension("JesserLahmer.offhand").activate();
     terminals = api.terminals;
     ui = api.ui;
     for (const kind of ["info", "warn", "error"]) {
