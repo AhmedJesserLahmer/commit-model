@@ -2,7 +2,7 @@
 
 Mirrors vscode-extension/src/engine.ts: same llama.cpp release, same platform builds (GPU via
 Vulkan or Metal, CPU-only fallback), same generation settings. The engine and the model are
-downloaded once into a cache folder (default ~/.cache/commit-model).
+downloaded once into a cache folder (default ~/.cache/beemo).
 """
 import json
 import os
@@ -27,7 +27,7 @@ LLAMA_TAG = "b11476"
 # 1024 leaves headroom above the 768-token prompts the model was trained on.
 CONTEXT_SIZE = 1024
 MAX_NEW_TOKENS = 40
-DEFAULT_CACHE_DIR = Path.home() / ".cache" / "commit-model"
+DEFAULT_CACHE_DIR = Path.home() / ".cache" / "beemo"
 
 
 def resolve_model_url(uri: str) -> str:

@@ -45,7 +45,7 @@ texts as on Linux and macOS.
 Windows also needs the Microsoft Visual C++ runtime for llama.cpp, which a fresh Windows doesn't have
 (many PCs do, from other apps). The extension checks for it before starting; if it's missing it explains
 in plain words and offers "Install it": downloads Microsoft's official installer, runs it (Windows asks
-for permission), then turns Offhand on. The Python CLI says the same with the download link.
+for permission), then turns Offhand on. The Python CLI (`beemo`) says the same with the download link.
 
 Activity log: Output panel → "Offhand".
 
@@ -89,8 +89,8 @@ The model downloads on first start from Hugging Face,
 `commitModel.modelUri`, `hf:Jess2005/commit-model-CLI/commit-model-Q4_K_M.gguf`; 986 MB, same SHA-256 as
 the local model), into VS Code's storage for the extension, then is reused. A download whose size doesn't
 match what the server announced is discarded with a clear error, so an interrupted download never leaves
-a broken model. `commitModel.modelPath` (a local file) overrides it, for development. The Python CLI uses
-the same default, into `~/.cache/commit-model`.
+a broken model. `offhand.modelPath` (a local file) overrides it, for development. The Python CLI (`beemo`)
+uses the same default, into `~/.cache/beemo`.
 
 ## Package and publishing
 
@@ -142,7 +142,10 @@ for updates: an Azure DevOps token (Marketplace → Manage), `npx vsce login Jes
 | `test/unit.test.mjs`, `test/clean-cases.json` | cleanup unit tests; the cases are shared with the Python CLI |
 | `test/smoke.mjs` | engine test outside VS Code |
 
-Python CLI (`src/commit_model/`): `cli.py` and `engine.py` use the same llama-server engine and
+Python CLI, **`beemo`** (`src/commit_model/`, installed with `uv pip install -e .`; renamed from
+`commit-model`): run `beemo` in a repository with staged changes to print a suggestion
+(`--model-path` or `BEEMO_MODEL_PATH` for a local model, `--cpu`, `--hook-file`). `cli.py` and
+`engine.py` use the same llama-server engine and
 generation settings; `postprocess.py` mirrors the cleanup; `tests/test_postprocess.py` checks it against
 the same cases. `scripts/install_hook.sh` installs a git hook that uses the CLI.
 

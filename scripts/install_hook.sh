@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Installs a prepare-commit-msg hook into the target git repo (defaults to CWD)
-# that pre-fills the commit message using the commit-model CLI.
+# that pre-fills the commit message using the beemo CLI.
 #
 # Usage: scripts/install_hook.sh [path-to-repo] [path-to-model.gguf]
 #
-# Without a model path, the hook uses $COMMIT_MODEL_PATH / $COMMIT_MODEL_URI as set when git runs it.
+# Without a model path, the hook uses $BEEMO_MODEL_PATH / $BEEMO_MODEL_URI as set when git runs it.
 set -euo pipefail
 
 REPO_DIR="${1:-.}"
@@ -18,12 +18,12 @@ fi
 
 # Absolute path to the CLI: git hooks often run without the project's virtualenv on PATH.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CLI="$(command -v commit-model || true)"
-if [ -z "$CLI" ] && [ -x "$SCRIPT_DIR/../.venv/bin/commit-model" ]; then
-    CLI="$(cd "$SCRIPT_DIR/../.venv/bin" && pwd)/commit-model"
+CLI="$(command -v beemo || true)"
+if [ -z "$CLI" ] && [ -x "$SCRIPT_DIR/../.venv/bin/beemo" ]; then
+    CLI="$(cd "$SCRIPT_DIR/../.venv/bin" && pwd)/beemo"
 fi
 if [ -z "$CLI" ]; then
-    echo "error: commit-model not found. Run 'uv pip install -e .' in the project first." >&2
+    echo "error: beemo not found. Run 'uv pip install -e .' in the project first." >&2
     exit 1
 fi
 

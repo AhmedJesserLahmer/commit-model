@@ -1,5 +1,5 @@
 [project]
-name = "commit-model"
+name = "beemo"
 version = "0.1.0"
 description = "Small local fine-tuned model that writes commit messages from staged diffs"
 requires-python = ">=3.12,<3.13"
@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-commit-model = "commit_model.cli:main"
+beemo = "commit_model.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]

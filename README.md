@@ -42,7 +42,7 @@ uv pip install -e .
 5. **Use it**:
    ```bash
    git add -A
-   commit-model                     # prints a suggested commit message
+   beemo                            # prints a suggested commit message
    scripts/install_hook.sh          # or: auto-fill via prepare-commit-msg
    ```
 

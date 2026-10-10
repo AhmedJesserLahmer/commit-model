@@ -1,14 +1,14 @@
-"""CLI: reads `git diff --staged`, generates a Conventional Commits message.
+"""Beemo, the command-line tool: reads `git diff --staged`, generates a Conventional Commits message.
 
 Runs the 4-bit model in llama.cpp's llama-server (same engine as the VS Code extension). The engine
-and, unless a local model is given, the model are downloaded once into ~/.cache/commit-model.
+and, unless a local model is given, the model are downloaded once into ~/.cache/beemo.
 
 Usage:
-    commit-model                                  # print a suggestion for the staged diff
-    commit-model --model-path model.gguf          # use a local model file
-    commit-model --hook-file MSGFILE              # write suggestion into a prepare-commit-msg file
+    beemo                                         # print a suggestion for the staged diff
+    beemo --model-path model.gguf                 # use a local model file
+    beemo --hook-file MSGFILE                     # write suggestion into a prepare-commit-msg file
 
-The model can also be set with the COMMIT_MODEL_PATH (local file) or COMMIT_MODEL_URI environment variables.
+The model can also be set with the BEEMO_MODEL_PATH (local file) or BEEMO_MODEL_URI environment variables.
 """
 import argparse
 import os
@@ -31,10 +31,10 @@ def get_staged_diff() -> str:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--model-path", default=os.environ.get("COMMIT_MODEL_PATH"),
-                        help="local .gguf model (default: $COMMIT_MODEL_PATH)")
-    parser.add_argument("--model-uri", default=os.environ.get("COMMIT_MODEL_URI", DEFAULT_MODEL_URI),
-                        help="hf:<user>/<repo>/<file> or URL to download the model from (default: $COMMIT_MODEL_URI)")
+    parser.add_argument("--model-path", default=os.environ.get("BEEMO_MODEL_PATH"),
+                        help="local .gguf model (default: $BEEMO_MODEL_PATH)")
+    parser.add_argument("--model-uri", default=os.environ.get("BEEMO_MODEL_URI", DEFAULT_MODEL_URI),
+                        help="hf:<user>/<repo>/<file> or URL to download the model from (default: $BEEMO_MODEL_URI)")
     parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR,
                         help=f"where the engine and model are downloaded (default: {DEFAULT_CACHE_DIR})")
     parser.add_argument("--cpu", action="store_true", help="run on the CPU even if a GPU is available")
@@ -42,7 +42,7 @@ def main():
     args = parser.parse_args()
 
     if not args.model_path and "<username>" in args.model_uri:
-        print("No model configured: pass --model-path, or set COMMIT_MODEL_PATH or COMMIT_MODEL_URI.", file=sys.stderr)
+        print("No model configured: pass --model-path, or set BEEMO_MODEL_PATH or BEEMO_MODEL_URI.", file=sys.stderr)
         sys.exit(1)
 
     diff = get_staged_diff()
