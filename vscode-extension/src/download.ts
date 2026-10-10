@@ -42,8 +42,14 @@ export async function downloadFile(url: string, dest: string, onPercent: (percen
                 onPercent(percent);
             }
         }
-    } finally {
+        if (total && received !== total) {
+            throw new Error(`Download incomplete (${received} of ${total} bytes), connection interrupted? Try again.`);
+        }
+    } catch (error) {
         await file.close();
+        await fs.rm(partPath, { force: true });
+        throw error;
     }
+    await file.close();
     await fs.rename(partPath, dest);
 }

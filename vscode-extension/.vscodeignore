@@ -1,0 +1,10 @@
+# Keeps the published package to what runs: dist/, package.json, README.md.
+src/**
+test/**
+.vscode/**
+.vscode-test/**
+node_modules/**
+**/*.map
+tsconfig.json
+.gitignore
+*.vsix

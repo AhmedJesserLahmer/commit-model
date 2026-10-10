@@ -124,8 +124,21 @@ const tests = [
         await waitFor("llama-server to stop", () => !serverRunning(), 30_000);
     }],
 
-    ["turning on starts the model", async () => {
+    ["turning on starts the model (download mode: downloads it from Hugging Face first)", async () => {
+        const models = path.join(path.dirname(terminals.binDir), "models");
+        const downloaded = path.join(models, "commit-model-Q4_K_M.gguf");
+        const downloadMode = Boolean(process.env.COMMIT_MODEL_TEST_DOWNLOAD);
+        if (downloadMode) {
+            assert.ok(!fs.existsSync(downloaded), "the model was already downloaded: not a first start");
+        }
+        const started = Date.now();
         await vscode.commands.executeCommand("commitModel.toggle");
+        if (downloadMode) {
+            const size = fs.statSync(downloaded).size;
+            console.log(`      downloaded ${(size / 1e6).toFixed(0)} MB from Hugging Face and started in ${((Date.now() - started) / 1000).toFixed(0)}s`);
+            assert.ok(size > 900e6, `downloaded model too small: ${size} bytes`);
+            assert.deepStrictEqual(fs.readdirSync(models).filter((f) => f.endsWith(".part")), [], "a partial download was left behind");
+        }
         assert.deepStrictEqual(shown.filter((m) => m.kind === "error"), []);
         assert.ok(serverRunning(), "llama-server isn't running");
         assert.ok(fs.existsSync(terminals.env.COMMIT_MODEL_STATE), "the terminals weren't told it's on");
@@ -230,6 +243,22 @@ const tests = [
         const repository = gitApi.repositories.find((r) => samePath(r.rootUri.fsPath, repo));
         assert.match(repository.inputBox.value, VALID_MESSAGE);
         realGit("reset", "-q");
+    }],
+
+    ["download mode: a second start reuses the downloaded model", async () => {
+        if (!process.env.COMMIT_MODEL_TEST_DOWNLOAD) {
+            console.log("      (skipped: not in download mode)");
+            return;
+        }
+        const downloaded = path.join(path.dirname(terminals.binDir), "models", "commit-model-Q4_K_M.gguf");
+        const before = fs.statSync(downloaded).mtimeMs;
+        await vscode.commands.executeCommand("commitModel.toggle"); // off
+        await waitFor("llama-server to stop", () => !serverRunning(), 30_000);
+        const started = Date.now();
+        await vscode.commands.executeCommand("commitModel.toggle"); // on again
+        assert.ok(serverRunning(), "llama-server isn't running");
+        assert.strictEqual(fs.statSync(downloaded).mtimeMs, before, "the model was downloaded again");
+        console.log(`      second start without downloading: ${((Date.now() - started) / 1000).toFixed(1)}s`);
     }],
 
     ["turning off stops the model, and git add is plain again", async () => {

@@ -34,7 +34,7 @@ changes as `fix`.
 
 | Setting | Default | |
 |---|---|---|
-| `commitModel.modelUri` | Hugging Face URI | Where the model is downloaded from on first start |
+| `commitModel.modelUri` | `hf:Jess2005/commit-model-CLI/commit-model-Q4_K_M.gguf` | Where the model is downloaded from on first start |
 | `commitModel.modelPath` | empty | Local `.gguf` file; used instead of downloading when set |
 | `commitModel.gpu` | `auto` | `cpu` forces CPU-only |
 

@@ -19,8 +19,7 @@ from pathlib import Path
 from commit_model.diff_utils import build_diff
 from commit_model.engine import DEFAULT_CACHE_DIR, Engine
 
-# Placeholder until the model is published on Hugging Face.
-DEFAULT_MODEL_URI = "hf:<username>/<repo>/commit-model-Q4_K_M.gguf"
+DEFAULT_MODEL_URI = "hf:Jess2005/commit-model-CLI/commit-model-Q4_K_M.gguf"
 
 
 def get_staged_diff() -> str:

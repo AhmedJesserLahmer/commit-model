@@ -11,9 +11,10 @@ installed as one extension that handles the engine, model download and running.
   VS Code, including inside Snap VS Code's runtime.
 
 ## 1. Finish the MVP
-- **Task:** upload `commit-model-Q4_K_M.gguf` to Hugging Face and set the extension's default `modelUri`;
-  try the extension in VS Code (F5) on real commits.
-- **Why:** the download-on-first-start flow and the Source Control button can only be checked inside VS Code.
+- **Done:** model on Hugging Face (`Jess2005/commit-model-CLI`), downloaded on first start; packaged
+  `.vsix` tested end to end (Linux; Windows 11 VM).
+- **Task:** try it by hand on real commits; add a model card (README) on the Hugging Face repo.
+- **Why:** real use shows what tests don't.
 
 ## 2. Commit current work
 - **Task:** commit the extension, notebooks, scripts, `results.md`, `plan.md`, `MVP.md`.

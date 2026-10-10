@@ -54,6 +54,9 @@ def download(url: str, dest: Path, label: str) -> None:
             if percent != last and sys.stderr.isatty():
                 print(f"\rDownloading {label}... {percent}%", end="", file=sys.stderr, flush=True)
                 last = percent
+    if total and received != total:
+        part.unlink()
+        raise RuntimeError(f"Download incomplete ({received} of {total} bytes), connection interrupted? Try again.")
     if sys.stderr.isatty():
         print(file=sys.stderr)
     part.rename(dest)

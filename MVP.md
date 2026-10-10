@@ -84,8 +84,20 @@ Why not node-llama-cpp (the first choice): it loads llama.cpp inside VS Code's p
 Snap VS Code, Ubuntu's default install (`GLIBC_2.32 not found`), and it needed ~900MB of binaries.
 A separate process uses the system's own libraries and can't take VS Code down if it crashes.
 
-The model downloads from Hugging Face on first start (`commitModel.modelUri`), or comes from a local file
-(`commitModel.modelPath`).
+The model downloads on first start from Hugging Face,
+[`Jess2005/commit-model-CLI`](https://huggingface.co/Jess2005/commit-model-CLI) (the default
+`commitModel.modelUri`, `hf:Jess2005/commit-model-CLI/commit-model-Q4_K_M.gguf`; 986 MB, same SHA-256 as
+the local model), into VS Code's storage for the extension, then is reused. A download whose size doesn't
+match what the server announced is discarded with a clear error, so an interrupted download never leaves
+a broken model. `commitModel.modelPath` (a local file) overrides it, for development. The Python CLI uses
+the same default, into `~/.cache/commit-model`.
+
+## Package
+
+`npx vsce package --skip-license --allow-missing-repository` builds `commit-model.vsix`: 27 KB, 14 files
+(compiled code, `package.json`, README; `.vscodeignore` keeps sources, tests and build tools out). The
+engine and model download on first start, so one package serves every OS. Install it by hand with
+Extensions → "…" → Install from VSIX.
 
 ## Code
 
@@ -119,6 +131,8 @@ the same cases. `scripts/install_hook.sh` installs a git hook that uses the CLI.
 | `npm run test:integration` (Linux) | the whole workflow in a real VS Code, throwaway repo: real model, llama-server, `git` wrapper, Git, commits; answers typed into the prompt | **16/16** (1 Windows-only skipped) |
 | `COMMIT_MODEL_NODE_WATCHDOG=1 npm run test:integration` (Linux) | the same with the Windows (Node) watchdog | **16/16** |
 | `node test/integration/runTest.js <model>` (Windows 11 VM) | the same on Windows, from a fresh PC without the Visual C++ runtime; PowerShell terminal | **16/16** |
+| `COMMIT_MODEL_TEST_DOWNLOAD=1 npm run test:integration` | as a new user: no model setting, nothing downloaded; the model comes from Hugging Face | **17/17** (986 MB in ~280s, second start 2.4s) |
+| the same with `COMMIT_MODEL_TEST_EXTENSION_PATH=<unpacked .vsix>` | the packaged extension itself, not the development folder | **17/17** |
 | `npm run test:unit` | cleanup rules (no model) | **18/18** |
 | `python -m unittest tests.test_postprocess` | the Python cleanup, same 18 cases | **passes** |
 | `npm run test:smoke` | the engine alone, outside VS Code | valid messages |
@@ -129,7 +143,7 @@ Integration tests:
 3. terminals keep working after a window reload (stable on/off file)
 4. while off, git add is plain git add
 5. Windows without the Visual C++ runtime: offers to install it, then starts (real download and install)
-6. turning on starts the model
+6. turning on starts the model (download mode: downloads it from Hugging Face first, checks it's complete)
 7. git add → suggestion → Y commits it
 8. anything but Y or N is asked again
 9. N lets the user type their own message
@@ -139,7 +153,8 @@ Integration tests:
 13. no prompt outside an interactive terminal (scripts, tools)
 14. in a real VS Code terminal: git add, then typing y commits (bash on Linux, PowerShell on Windows)
 15. the ✨ button puts a suggestion in the commit box
-16. turning off stops the model, and git add is plain again
+16. download mode: a second start reuses the downloaded model
+17. turning off stops the model, and git add is plain again
 
 Also verified: the engine inside Snap VS Code's runtime, GPU (NVIDIA, ~0.15-0.25s per message) and
 CPU-only (~1.3s), GPU-to-CPU fallback, the engine stopping within 1s when its parent is killed (both
@@ -203,8 +218,6 @@ into separate module`, `docs: add more details to README`, `chore: add tests wor
 
 ## Left for the MVP
 
-- Upload `commit-model-Q4_K_M.gguf` to Hugging Face and set the default `modelUri`
-  (`hf:<username>/<repo>/commit-model-Q4_K_M.gguf`); test the first-start model download.
 - Try it by hand on real work (scenarios 2-10 in the VS Code terminal).
 - Windows: tested in PowerShell; Command Prompt and Git Bash terminals not tested yet.
 
