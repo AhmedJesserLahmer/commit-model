@@ -135,6 +135,19 @@ def pick_device(server: Path, env: dict) -> str | None:
     return next((dev for dev, name in devices if not integrated.search(name)), devices[0][0])
 
 
+def check_windows_runtime() -> None:
+    """llama.cpp's Windows builds need the Microsoft Visual C++ runtime, which a fresh Windows lacks."""
+    if sys.platform != "win32":
+        return
+    system32 = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
+    missing = [dll for dll in ("vcruntime140.dll", "msvcp140.dll") if not (system32 / dll).exists()]
+    if missing:
+        raise RuntimeError(
+            f"The Microsoft Visual C++ runtime isn't installed ({', '.join(missing)} missing). "
+            "Install it from https://aka.ms/vs/17/release/vc_redist.x64.exe and try again."
+        )
+
+
 def free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -175,6 +188,7 @@ class Engine:
         model = Path(self.model_path).expanduser().resolve() if self.model_path else ensure_model(self.model_uri, self.cache_dir)
         if not model.exists():
             raise FileNotFoundError(f"Model file not found: {model}")
+        check_windows_runtime()
         errors = []
         for variant, gpu in candidate_builds(self.use_gpu):
             try:

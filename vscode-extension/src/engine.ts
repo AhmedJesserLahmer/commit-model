@@ -4,7 +4,7 @@
 // That matters on Linux: Snap VS Code runs on Ubuntu 20.04's glibc, too old for current llama.cpp
 // builds, but a process it launches still gets the system's glibc. It also keeps an engine crash
 // from taking VS Code down.
-import { ChildProcess, execFile, spawn } from "child_process";
+import { ChildProcess, execFile, fork, spawn } from "child_process";
 import * as fs from "fs/promises";
 import * as net from "net";
 import * as path from "path";
@@ -30,6 +30,33 @@ export interface EngineOptions {
 export type StartPhase =
     | { phase: "downloading"; what: "engine" | "model"; percent: number }
     | { phase: "loading" };
+
+/**
+ * llama.cpp's Windows builds need the Microsoft Visual C++ runtime, which a fresh Windows doesn't have
+ * (many PCs do, installed by other apps). Without it llama-server exits at once with "DLL not found".
+ */
+export class MissingRuntimeError extends Error {
+    static readonly INSTALLER_URL = "https://aka.ms/vs/17/release/vc_redist.x64.exe";
+}
+
+const VC_RUNTIME_DLLS = ["vcruntime140.dll", "msvcp140.dll"];
+const STATUS_DLL_NOT_FOUND = [0xc0000135, -1073741515]; // Windows exit code, unsigned or signed
+
+async function checkWindowsRuntime(): Promise<void> {
+    if (process.platform !== "win32") {
+        return;
+    }
+    const system32 = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32");
+    const missing = [];
+    for (const dll of VC_RUNTIME_DLLS) {
+        if (!(await exists(path.join(system32, dll)))) {
+            missing.push(dll);
+        }
+    }
+    if (missing.length) {
+        throw new MissingRuntimeError(`the Microsoft Visual C++ runtime isn't installed (${missing.join(", ")} missing)`);
+    }
+}
 
 interface Build {
     /** Release asset name without the extension, e.g. ubuntu-vulkan-x64. */
@@ -127,13 +154,19 @@ async function pickDevice(serverPath: string, env: NodeJS.ProcessEnv): Promise<s
 /**
  * Starts the server so that it also stops when this process (VS Code's extension host) ends for any
  * reason, including a crash or being killed, which skip the normal shutdown. Otherwise it would keep
- * running in the background holding ~1GB of (GPU) memory. On Linux and macOS a small shell watchdog
- * does this; killing the returned process stops the server too.
+ * running in the background holding ~1GB of (GPU) memory. Stop the result with `terminate()`.
+ *
+ * Linux and macOS: a small shell watchdog. Windows: a Node watchdog (dist/watchdog.js) connected by an
+ * IPC channel, since killing a process there skips its cleanup. COMMIT_MODEL_NODE_WATCHDOG=1 forces the
+ * Node one (for testing it on Linux).
  */
 function spawnWithWatchdog(file: string, args: string[], options: { cwd: string; env: NodeJS.ProcessEnv }): ChildProcess {
-    const stdio: ["ignore", "pipe", "pipe"] = ["ignore", "pipe", "pipe"];
-    if (process.platform === "win32") {
-        return spawn(file, args, { ...options, stdio });
+    if (process.platform === "win32" || process.env.COMMIT_MODEL_NODE_WATCHDOG) {
+        return fork(path.join(__dirname, "watchdog.js"), [file, ...args], {
+            ...options,
+            env: { ...options.env, ELECTRON_RUN_AS_NODE: "1" }, // VS Code's runtime runs it as plain Node
+            stdio: ["ignore", "pipe", "pipe", "ipc"],
+        });
     }
     const watchdog = [
         '"$@" & server=$!',
@@ -142,7 +175,19 @@ function spawnWithWatchdog(file: string, args: string[], options: { cwd: string;
         "kill $server 2>/dev/null",
         "wait $server",
     ].join("\n");
-    return spawn("/bin/sh", ["-c", watchdog, "llama-server-watchdog", file, ...args], { ...options, stdio });
+    return spawn("/bin/sh", ["-c", watchdog, "llama-server-watchdog", file, ...args], {
+        ...options,
+        stdio: ["ignore", "pipe", "pipe"],
+    });
+}
+
+/** Stops a server started by spawnWithWatchdog, including the server behind a Node watchdog. */
+function terminate(server: ChildProcess): void {
+    if (server.connected) {
+        server.disconnect(); // the Node watchdog stops the server, then exits
+    } else {
+        server.kill();
+    }
 }
 
 export class ModelEngine {
@@ -180,6 +225,7 @@ export class ModelEngine {
         if (!(await exists(modelPath))) {
             throw new Error(`Model file not found: ${modelPath}`);
         }
+        await checkWindowsRuntime();
         let lastError: unknown;
         for (const build of candidateBuilds(options.gpu !== "cpu")) {
             try {
@@ -258,18 +304,23 @@ export class ModelEngine {
         server.stdout?.on("data", keepTail);
         server.stderr?.on("data", keepTail);
         let exited = false;
-        server.on("exit", () => {
+        let exitCode: number | null = null;
+        server.on("exit", (code) => {
             exited = true;
+            exitCode = code;
         });
 
         const baseUrl = `http://127.0.0.1:${port}`;
         const deadline = Date.now() + 180_000;
         while (!(await isHealthy(baseUrl))) {
             if (exited) {
+                if (exitCode !== null && STATUS_DLL_NOT_FOUND.includes(exitCode)) {
+                    throw new MissingRuntimeError("llama-server couldn't start: a system DLL is missing (Microsoft Visual C++ runtime?)");
+                }
                 throw new Error(`llama-server exited while loading the model:\n${output.trim().split("\n").slice(-8).join("\n")}`);
             }
             if (Date.now() > deadline) {
-                server.kill();
+                terminate(server);
                 throw new Error("llama-server didn't become ready within 3 minutes");
             }
             await new Promise((resolve) => setTimeout(resolve, 300));
@@ -307,7 +358,7 @@ export class ModelEngine {
         this.stopping = true;
         try {
             const exited = new Promise<void>((resolve) => server.once("exit", () => resolve()));
-            server.kill();
+            terminate(server);
             const timeout = setTimeout(() => server.kill("SIGKILL"), 5000);
             await exited;
             clearTimeout(timeout);

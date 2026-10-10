@@ -30,8 +30,22 @@ How: the extension puts a small `git` wrapper first on the PATH of VS Code's ter
 git; after a successful `git add` in an interactive terminal while the toggle is On, it runs the prompt
 (`dist/terminal.js`) with VS Code's own Node runtime, which asks the already-running model. On/off is a
 state file per workspace, stable across window reloads, so toggling or reloading never requires
-reopening terminals. Terminals opened before the extension started need reopening once. Linux and macOS
-for now (the wrapper is a shell script); Windows gets the ✨ button until then.
+reopening terminals. Terminals opened before the extension started need reopening once.
+
+Every platform gets the terminal prompt: a shell wrapper `git` for bash and zsh (Linux, macOS, Git Bash
+on Windows) and a batch wrapper `git.cmd` for PowerShell and Command Prompt on Windows (Windows finds
+`git.cmd` first on the PATH, before the real `git.exe`).
+
+On Windows the conversation runs in PowerShell: VS Code's runtime (`Code.exe`) is a windowed program
+there, so it can write to a terminal but can't read the keyboard (verified in the VM: its input is
+closed). `git.cmd` runs `commit-model-prompt.ps1`, which gets the suggestion from `terminal.js --suggest`
+(the same TypeScript filtering, prompt, generation and cleanup), then asks Y/N and commits with the same
+texts as on Linux and macOS.
+
+Windows also needs the Microsoft Visual C++ runtime for llama.cpp, which a fresh Windows doesn't have
+(many PCs do, from other apps). The extension checks for it before starting; if it's missing it explains
+in plain words and offers "Install it": downloads Microsoft's official installer, runs it (Windows asks
+for permission), then turns Commit Model on. The Python CLI says the same with the download link.
 
 Activity log: Output panel → "Commit Model".
 
@@ -60,7 +74,8 @@ separate process. On first start the extension downloads the build for the user'
 build for Linux/Windows (NVIDIA, AMD, Intel; 24-33MB) or macOS (Metal; 12MB), with a CPU-only build as
 fallback. With two GPUs it picks the dedicated one over an integrated Intel GPU. A small watchdog stops the
 server as soon as VS Code's extension process ends, even after a crash, so it never keeps ~1GB of GPU
-memory in the background.
+memory in the background: a shell watchdog on Linux and macOS, a Node watchdog (`dist/watchdog.js`,
+connected over IPC) on Windows, where killing a process skips its cleanup.
 
 Generation settings match training and evaluation: plain prompt (no chat template), greedy decoding,
 no repeat penalty, first line only, diff truncated to fit 768 tokens.
@@ -81,7 +96,9 @@ The model downloads from Hugging Face on first start (`commitModel.modelUri`), o
 | `src/extension.ts` | toggle, status bar, ✨ button, activity log |
 | `src/terminalSetup.ts` | the `git` wrapper on terminals' PATH, on/off state |
 | `src/terminal.ts` | the terminal prompt: suggestion, Y/N, commit |
-| `src/engine.ts` | downloads and runs llama-server (watchdog), GPU/CPU fallback |
+| `src/engine.ts` | downloads and runs llama-server, GPU/CPU fallback |
+| `src/watchdog.ts` | Windows: stops llama-server when VS Code's extension process ends |
+| `src/terminalSetup.ts` (`WINDOWS_PROMPT`) | Windows: the PowerShell conversation script |
 | `src/client.ts` | talks to llama-server: tokenizing, generating |
 | `src/postprocess.ts` | suggestion cleanup |
 | `src/download.ts` | downloads with progress, `hf:` URIs |
@@ -99,7 +116,9 @@ the same cases. `scripts/install_hook.sh` installs a git hook that uses the CLI.
 
 | Command | What it runs | Latest |
 |---|---|---|
-| `npm run test:integration` | the whole workflow in a real VS Code, throwaway repo: real model, llama-server, `git` wrapper, Git, commits; answers typed into the prompt | **15/15** |
+| `npm run test:integration` (Linux) | the whole workflow in a real VS Code, throwaway repo: real model, llama-server, `git` wrapper, Git, commits; answers typed into the prompt | **16/16** (1 Windows-only skipped) |
+| `COMMIT_MODEL_NODE_WATCHDOG=1 npm run test:integration` (Linux) | the same with the Windows (Node) watchdog | **16/16** |
+| `node test/integration/runTest.js <model>` (Windows 11 VM) | the same on Windows, from a fresh PC without the Visual C++ runtime; PowerShell terminal | **16/16** |
 | `npm run test:unit` | cleanup rules (no model) | **18/18** |
 | `python -m unittest tests.test_postprocess` | the Python cleanup, same 18 cases | **passes** |
 | `npm run test:smoke` | the engine alone, outside VS Code | valid messages |
@@ -109,21 +128,31 @@ Integration tests:
 2. the git wrapper is installed for terminals
 3. terminals keep working after a window reload (stable on/off file)
 4. while off, git add is plain git add
-5. turning on starts the model
-6. git add → suggestion → Y commits it
-7. anything but Y or N is asked again
-8. N lets the user type their own message
-9. N then an empty message commits nothing
-10. other git commands don't prompt
-11. git add with nothing to stage says so
-12. no prompt outside an interactive terminal (scripts, tools)
-13. in a real VS Code terminal: git add, then typing y commits
-14. the ✨ button puts a suggestion in the commit box
-15. turning off stops the model, and git add is plain again
+5. Windows without the Visual C++ runtime: offers to install it, then starts (real download and install)
+6. turning on starts the model
+7. git add → suggestion → Y commits it
+8. anything but Y or N is asked again
+9. N lets the user type their own message
+10. N then an empty message commits nothing
+11. other git commands don't prompt
+12. git add with nothing to stage says so
+13. no prompt outside an interactive terminal (scripts, tools)
+14. in a real VS Code terminal: git add, then typing y commits (bash on Linux, PowerShell on Windows)
+15. the ✨ button puts a suggestion in the commit box
+16. turning off stops the model, and git add is plain again
 
 Also verified: the engine inside Snap VS Code's runtime, GPU (NVIDIA, ~0.15-0.25s per message) and
-CPU-only (~1.3s), GPU-to-CPU fallback, the engine stopping within 1s when its parent is killed, Hugging
-Face downloads, quality on 200 test examples (same as fp32).
+CPU-only (~1.3s), GPU-to-CPU fallback, the engine stopping within 1s when its parent is killed (both
+watchdogs), Hugging Face downloads, quality on 200 test examples (same as fp32).
+
+### Windows
+
+Tested in a Windows 11 Pro VM (French, unactivated) on this machine: `~/win11-vm/` (QEMU/KVM, virtual
+TPM, unattended install from `~/Téléchargements/Win11_25H2_French_x64_v2.iso`, OpenSSH for remote
+control). `~/win11-vm/start.sh` starts it in the background; `vm.sh '<PowerShell>'` runs a command in it,
+`vmcp.sh` copies files in, `shot.sh out.png` takes a screenshot. Git for Windows and Node.js installed by
+`provision.ps1`. The model ran on the VM's CPU (no GPU: the Vulkan build failed and the CPU build took
+over, as designed). Before that, the `git.cmd` logic was checked under Wine.
 
 ### Realistic scenarios
 
@@ -156,7 +185,13 @@ into separate module`, `docs: add more details to README`, `chore: add tests wor
 | node-llama-cpp can't load in Snap VS Code (`GLIBC_2.32 not found`) | engine switched to `llama-server` as a separate process |
 | node-llama-cpp applies a repeat penalty by default, unlike training | engine sets `repeat_penalty: 1.0` |
 | a relative model path resolved from the engine's folder | paths made absolute |
-| another installed extension blocked ours from starting (unidentified) | F5 test window runs with other extensions disabled; to investigate before publishing |
+| ours wasn't started in one test window ("command not found") | not reproducible: with all 8 of the user's extensions, their settings, their saved VS Code state, and even the old node-llama-cpp build, it starts normally every time; probably a one-off in that launch |
+| if anything failed during activation, commands were never registered ("command not found") | commands are registered first; a failed terminal setup only logs a warning |
+| Windows only had the ✨ button | `git.cmd` wrapper for PowerShell/Command Prompt, Node watchdog |
+| Windows: llama-server exited at once (`0xC0000135`, DLL not found): no Microsoft Visual C++ runtime on a fresh Windows | runtime check before starting, plain-language message, "Install it" button that installs Microsoft's runtime and turns on |
+| Windows: no suggestion appeared in a real terminal: `Code.exe` is a windowed program and can't read the keyboard | the conversation moved to a PowerShell script; TypeScript only produces the suggestion (`--suggest`) |
+| tests on Windows: VS Code writes `c:\` lowercase; Node can't run `git.cmd` directly; PowerShell's default "Restricted" policy blocks shell integration and `npm.ps1` | path comparison case-insensitive on Windows; tests run git through the Command Prompt; `PSExecutionPolicyPreference` for the test run only; `npm.cmd` in the VM |
+| a test checked "off" while the extension was still starting | tests wait for the on/off file, which appears once the model has loaded |
 | the first design asked Y/N in a box in the editor | moved to the terminal, only after `git add` (requested) |
 | answers typed quickly or pasted together were lost (`readline/promises`) | answers are queued line by line |
 | the engine kept running after VS Code was killed, holding GPU memory | watchdog around the server |
@@ -171,11 +206,11 @@ into separate module`, `docs: add more details to README`, `chore: add tests wor
 - Upload `commit-model-Q4_K_M.gguf` to Hugging Face and set the default `modelUri`
   (`hf:<username>/<repo>/commit-model-Q4_K_M.gguf`); test the first-start model download.
 - Try it by hand on real work (scenarios 2-10 in the VS Code terminal).
-- Find which installed extension blocked the extension from starting in a normal VS Code profile.
+- Windows: tested in PowerShell; Command Prompt and Git Bash terminals not tested yet.
 
 ## Next phases
 
 - CI: run the integration, unit and smoke tests on every push; Python/TypeScript prompt parity test
-- Package and publish (Marketplace), test on Windows and macOS; Windows terminal support
+- Package and publish (Marketplace), test on Windows and macOS
 - Retrain (`plan.md`, step 5): rebalance types so `build`, `ci`, `perf`, `style` get predicted, and clean
   the placeholders out of the training messages

@@ -11,6 +11,9 @@ const realGit = (...args) => execFileSync("git", args, { cwd: repo }).toString()
 const lastCommitSubject = () => realGit("log", "-1", "--format=%s");
 const stagedFiles = () => realGit("diff", "--cached", "--name-only");
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const isWindows = process.platform === "win32";
+// Windows paths are case-insensitive, and VS Code writes the drive letter in lowercase ("c:\\...").
+const samePath = (a, b) => (isWindows ? a.toLowerCase() === b.toLowerCase() : a === b);
 const VALID_MESSAGE = /^(feat|fix|refactor|chore|docs|test|perf|style|build|ci)(\([\w./-]+\))?!?:\s+\S/;
 
 async function waitFor(what, condition, timeoutMs = 120_000) {
@@ -28,7 +31,10 @@ async function waitFor(what, condition, timeoutMs = 120_000) {
 }
 
 let terminals;
+let ui;
 const shown = [];
+const runtimeMissing = isWindows &&
+    !fs.existsSync(path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "vcruntime140.dll"));
 
 /**
  * Runs a git command the way an integrated terminal does (wrapper first on PATH, the extension's
@@ -40,7 +46,11 @@ function gitInTerminal(args, input = "", { interactive = true } = {}) {
     if (interactive) {
         env.COMMIT_MODEL_FORCE_PROMPT = "1";
     }
-    const result = spawnSync("git", args, { cwd: repo, env, input, encoding: "utf8", timeout: 120_000 });
+    // On Windows, through the Command Prompt like a user's terminal: Node itself can't run git.cmd.
+    const result = isWindows
+        ? spawnSync(["git", ...args].map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(" "),
+            { cwd: repo, env, input, encoding: "utf8", timeout: 120_000, shell: true })
+        : spawnSync("git", args, { cwd: repo, env, input, encoding: "utf8", timeout: 120_000 });
     assert.strictEqual(result.status, 0, `git ${args.join(" ")} failed: ${result.stderr}`);
     return result.stdout;
 }
@@ -53,8 +63,11 @@ const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const suggestionIn = (output) => (output.match(/Commit Model suggests:\s+(.+)/) ?? [])[1]?.trim();
 
 function serverRunning() {
-    return execFileSync("ps", ["-eo", "args"]).toString().split("\n")
-        .some((p) => p.includes("llama-server") && p.includes(".vscode-test"));
+    const processes = isWindows
+        ? execFileSync("powershell", ["-NoProfile", "-Command",
+            "Get-CimInstance Win32_Process -Filter \"Name='llama-server.exe'\" | ForEach-Object CommandLine"]).toString()
+        : execFileSync("ps", ["-eo", "args"]).toString();
+    return processes.split(/\r?\n/).some((p) => p.includes("llama-server") && p.includes(".vscode-test"));
 }
 
 const tests = [
@@ -66,8 +79,8 @@ const tests = [
     }],
 
     ["the git wrapper is installed for terminals", async () => {
-        const wrapper = path.join(terminals.binDir, "git");
-        fs.accessSync(wrapper, fs.constants.X_OK);
+        const wrapper = path.join(terminals.binDir, isWindows ? "git.cmd" : "git");
+        fs.accessSync(wrapper, isWindows ? fs.constants.R_OK : fs.constants.X_OK);
         assert.ok(terminals.env.COMMIT_MODEL_REAL_GIT, "the real git wasn't found");
     }],
 
@@ -86,6 +99,29 @@ const tests = [
         assert.strictEqual(stagedFiles(), "draft.txt");
         realGit("reset", "-q");
         fs.rmSync(path.join(repo, "draft.txt"));
+    }],
+
+    ["Windows without the Visual C++ runtime: offers to install it, then starts", async () => {
+        if (!runtimeMissing) {
+            console.log("      (skipped: not Windows, or the runtime is already installed)");
+            return;
+        }
+        const offers = [];
+        ui.offerInstall = async (message) => {
+            offers.push(message);
+            return true; // the user clicks "Install it"
+        };
+        await vscode.commands.executeCommand("commitModel.toggle");
+        await waitFor("the install offer", () => offers.length > 0, 30_000);
+        assert.match(offers[0], /Microsoft Visual C\+\+ runtime/);
+        // Real download and install from Microsoft, then Commit Model turns on by itself.
+        // On = the on/off file exists (written once the model has loaded, unlike the server process).
+        await waitFor("the runtime install and Commit Model turning on",
+            () => fs.existsSync(terminals.env.COMMIT_MODEL_STATE), 600_000);
+        assert.ok(serverRunning(), "llama-server isn't running");
+        assert.ok(fs.existsSync(path.join(process.env.SystemRoot, "System32", "vcruntime140.dll")));
+        await vscode.commands.executeCommand("commitModel.toggle"); // back off, for the next test
+        await waitFor("llama-server to stop", () => !serverRunning(), 30_000);
     }],
 
     ["turning on starts the model", async () => {
@@ -156,23 +192,31 @@ const tests = [
     ["in a real VS Code terminal: git add, then typing y commits", async () => {
         const terminal = vscode.window.createTerminal({ name: "commit-model-test", cwd: repo });
         try {
-            const integration = await waitFor("shell integration", () => terminal.shellIntegration, 30_000);
             write("strings.py", "def shout(text):\n    return text.upper()\n");
-            const execution = integration.executeCommand("git add strings.py");
-            let output = "";
-            let answered = false;
-            for await (const chunk of execution.read()) {
-                output += chunk;
-                if (!answered && /\[Y\/N\]/.test(output)) {
-                    answered = true;
-                    terminal.sendText("y", true);
+            const integration = await waitFor("shell integration", () => terminal.shellIntegration, 30_000).catch(() => undefined);
+            if (integration) {
+                // Read the terminal's output: the suggestion and the question must appear in it.
+                const execution = integration.executeCommand("git add strings.py");
+                let output = "";
+                let answered = false;
+                for await (const chunk of execution.read()) {
+                    output += chunk;
+                    if (!answered && /\[Y\/N\]/.test(output)) {
+                        answered = true;
+                        terminal.sendText("y", true);
+                    }
                 }
+                const clean = output.replace(/\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07/g, "");
+                const suggestion = suggestionIn(clean);
+                assert.match(suggestion ?? "", VALID_MESSAGE, `no suggestion in the terminal output:\n${clean}`);
+                assert.match(clean, /✓ Committed [0-9a-f]{7,}/, clean);
+                assert.strictEqual(lastCommitSubject(), suggestion);
+            } else {
+                // Without shell integration the test can't see when the question appears, and an answer
+                // typed ahead may be taken by the shell's line editor (PSReadLine) instead of the prompt.
+                throw new Error("no shell integration in this terminal, so the prompt can't be read (see runTest.js)");
             }
-            const clean = output.replace(/\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07/g, "");
-            const suggestion = suggestionIn(clean);
-            assert.match(suggestion ?? "", VALID_MESSAGE, `no suggestion in the terminal output:\n${clean}`);
-            assert.match(clean, /✓ Committed [0-9a-f]{7,}/, clean);
-            assert.strictEqual(lastCommitSubject(), suggestion);
+            console.log(`      committed from the terminal: ${lastCommitSubject()}`);
         } finally {
             terminal.dispose();
         }
@@ -183,14 +227,14 @@ const tests = [
         realGit("add", "strings.py");
         await vscode.commands.executeCommand("commitModel.generate");
         const gitApi = vscode.extensions.getExtension("vscode.git").exports.getAPI(1);
-        const repository = gitApi.repositories.find((r) => r.rootUri.fsPath === repo);
+        const repository = gitApi.repositories.find((r) => samePath(r.rootUri.fsPath, repo));
         assert.match(repository.inputBox.value, VALID_MESSAGE);
         realGit("reset", "-q");
     }],
 
     ["turning off stops the model, and git add is plain again", async () => {
         await vscode.commands.executeCommand("commitModel.toggle");
-        await waitFor("llama-server to stop", () => !serverRunning(), 15_000);
+        await waitFor("llama-server to stop", () => !serverRunning(), 30_000);
         assert.ok(!fs.existsSync(terminals.env.COMMIT_MODEL_STATE));
         write("after_off.txt", "x\n");
         const output = gitInTerminal(["add", "after_off.txt"], "y\n");
@@ -201,11 +245,12 @@ const tests = [
 exports.run = async function run() {
     const api = await vscode.extensions.getExtension("commit-model.commit-model").activate();
     terminals = api.terminals;
+    ui = api.ui;
     for (const kind of ["info", "warn", "error"]) {
         api.ui[kind] = (message) => shown.push({ kind, message });
     }
     const gitApi = vscode.extensions.getExtension("vscode.git").exports.getAPI(1);
-    await waitFor("Git to open the test repository", () => gitApi.repositories.some((r) => r.rootUri.fsPath === repo), 30_000);
+    await waitFor("Git to open the test repository", () => gitApi.repositories.some((r) => samePath(r.rootUri.fsPath, repo)), 30_000);
 
     const failures = [];
     for (const [name, test] of tests) {

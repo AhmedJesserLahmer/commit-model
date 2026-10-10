@@ -22,6 +22,9 @@ function installedVSCode() {
     if (process.env.VSCODE_PATH) {
         return process.env.VSCODE_PATH;
     }
+    if (process.platform !== "linux") {
+        return undefined; // @vscode/test-electron downloads a VS Code build
+    }
     // The real Electron binary, not the `code` launcher script (which returns before tests finish).
     const snapBinary = "/snap/code/current/usr/share/code/code";
     if (fs.existsSync(snapBinary)) {
@@ -50,6 +53,12 @@ async function main() {
         if (name.startsWith("VSCODE_") || name.startsWith("ELECTRON_")) {
             delete process.env[name];
         }
+    }
+    if (process.platform === "win32") {
+        // Lets VS Code load its shell integration in Windows PowerShell (blocked by the default
+        // "Restricted" script policy), so the terminal test can read the prompt. Only affects the
+        // processes started by this test run.
+        process.env.PSExecutionPolicyPreference = "RemoteSigned";
     }
     if (!fs.existsSync(modelPath)) {
         throw new Error(`Model not found: ${modelPath}. Pass a .gguf path as argument.`);

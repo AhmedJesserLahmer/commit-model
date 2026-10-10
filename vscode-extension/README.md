@@ -21,8 +21,10 @@ and the model (~1GB), then runs the server as a background process while the mod
    **Y** commits with the suggestion; **N** lets you type your own message (empty cancels).
 3. Click **Commit Model: On** to turn it off and free the memory.
 
-Only `git add` in VS Code's terminal triggers it (Linux and macOS for now). Save your files first: Git
-only sees saved changes. The ✨ button in the Source Control panel puts a suggestion in the commit box
+Only `git add` in VS Code's terminal triggers it: bash, zsh, Git Bash, PowerShell or Command Prompt.
+On Windows, the first start may ask to install the Microsoft Visual C++ runtime (a free Microsoft
+component the engine needs; many PCs already have it): click "Install it".
+Save your files first: Git only sees saved changes. The ✨ button in the Source Control panel puts a suggestion in the commit box
 instead. Terminals opened before the extension started need to be reopened once.
 
 Only the first line (subject) is generated. Read it before typing Y: the model tends to label too many

@@ -1,6 +1,6 @@
 // The terminal prompt. VS Code's integrated terminals get a `git` wrapper (see terminalSetup.ts) that
 // runs this after a successful `git add` while Commit Model is on: it prints a suggested message,
-// asks Y/N, and commits.
+// asks Y/N, and commits. On Windows it only writes the suggestion (`--suggest`), see main().
 //
 // Runs as a separate Node process (VS Code's own runtime), configured through environment variables:
 //   COMMIT_MODEL_STATE     file the extension writes while on: {"url": "<llama-server address>"}
@@ -106,34 +106,55 @@ function commit(message: string): void {
     }
 }
 
-async function main(): Promise<void> {
+/** What to tell the user after `git add`: nothing (off), a note, or a suggested message. */
+type Suggestion = { status: "off" } | { status: "info"; text: string } | { status: "message"; message: string };
+
+async function suggest(onGenerating: () => void): Promise<Suggestion> {
     const url = serverUrl();
     if (!url) {
-        return;
+        return { status: "off" };
     }
     const diff = git(["diff", "--cached"]).stdout;
     if (!diff.trim()) {
-        console.log(dim("Commit Model: nothing is staged, so there's no message to suggest. " +
-            "(Changes still open in the editor? Save them first.)"));
-        return;
+        return { status: "info", text: "Commit Model: nothing is staged, so there's no message to suggest. " +
+            "(Changes still open in the editor? Save them first.)" };
     }
     const filtered = buildDiff(diff);
     if (filtered === null) {
-        console.log(dim("Commit Model: only lockfiles or generated files are staged, so there's nothing to describe."));
-        return;
+        return { status: "info", text: "Commit Model: only lockfiles or generated files are staged, so there's nothing to describe." };
     }
     if (!(await isHealthy(url))) {
-        console.log(dim("Commit Model: the model isn't responding. Turn it off and on again in VS Code's status bar."));
-        return;
+        return { status: "info", text: "Commit Model: the model isn't responding. Turn it off and on again in VS Code's status bar." };
     }
-
-    process.stdout.write(dim("Commit Model is writing a message…"));
+    onGenerating();
     const message = await new ServerClient(url).generate(filtered);
-    process.stdout.write(process.stdout.isTTY ? "\r\x1b[2K" : "\n");
-    if (!message) {
-        console.log(dim("Commit Model couldn't come up with a message for these changes."));
+    return message
+        ? { status: "message", message }
+        : { status: "info", text: "Commit Model couldn't come up with a message for these changes." };
+}
+
+/** The conversation in the terminal (Linux, macOS): suggestion, Y/N, commit. */
+async function interactive(): Promise<void> {
+    // Only in an interactive terminal: scripts and tools running `git add` get plain git. (The bash
+    // wrapper checks this too, before starting Node.)
+    if (!process.stdin.isTTY && !process.env.COMMIT_MODEL_FORCE_PROMPT) {
         return;
     }
+    let writing = false;
+    const result = await suggest(() => {
+        writing = true;
+        process.stdout.write(dim("Commit Model is writing a message…"));
+    });
+    if (writing) {
+        process.stdout.write(process.stdout.isTTY ? "\r\x1b[2K" : "\n");
+    }
+    if (result.status === "info") {
+        console.log(dim(result.text));
+    }
+    if (result.status !== "message") {
+        return;
+    }
+    const message = result.message;
     console.log(`Commit Model suggests:  ${bold(message)}`);
 
     const answers = new Answers();
@@ -156,6 +177,22 @@ async function main(): Promise<void> {
     }
 }
 
+async function main(): Promise<void> {
+    // `--suggest <file>`: Windows. VS Code's runtime (Code.exe) is a windowed program there and can't read
+    // the keyboard, so it only writes the suggestion to <file>; a console PowerShell script
+    // (commit-model-prompt.ps1, see terminalSetup.ts) does the conversation and the commit.
+    if (process.argv[2] === "--suggest") {
+        fs.writeFileSync(process.argv[3], JSON.stringify(await suggest(() => undefined)));
+        return;
+    }
+    await interactive();
+}
+
 main().catch((error) => {
-    console.log(`Commit Model: ${error instanceof Error ? error.message : String(error)}`);
+    const text = `Commit Model: ${error instanceof Error ? error.message : String(error)}`;
+    if (process.argv[2] === "--suggest") {
+        fs.writeFileSync(process.argv[3], JSON.stringify({ status: "info", text }));
+    } else {
+        console.log(text);
+    }
 });

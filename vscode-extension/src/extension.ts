@@ -2,7 +2,12 @@
 // `git add` is followed by a suggested commit message and a Y/N question (see terminal.ts).
 import * as vscode from "vscode";
 
-import { EngineOptions, ModelEngine } from "./engine";
+import { spawn } from "child_process";
+import * as fs from "fs/promises";
+import * as path from "path";
+
+import { downloadFile } from "./download";
+import { EngineOptions, MissingRuntimeError, ModelEngine } from "./engine";
 import { gitPath, pickRepository, setCommitMessage, stagedDiff } from "./git";
 import { buildDiff } from "./prompt";
 import { TerminalSetup, setUpTerminals } from "./terminalSetup";
@@ -25,6 +30,9 @@ export const ui = {
     info: (message: string) => void vscode.window.showInformationMessage(message),
     warn: (message: string) => void vscode.window.showWarningMessage(message),
     error: (message: string) => void vscode.window.showErrorMessage(message),
+    /** Asks whether to install a missing Windows component; true if the user agreed. */
+    offerInstall: async (message: string, action: string) =>
+        (await vscode.window.showErrorMessage(message, action)) === action,
 };
 
 /** Activity log in the Output panel ("Commit Model"). */
@@ -34,21 +42,28 @@ function log(line: string): void {
 
 export function activate(context: vscode.ExtensionContext): { ui: typeof ui; terminals: TerminalSetup | undefined } {
     extensionContext = context;
-    output = vscode.window.createOutputChannel("Commit Model");
-    terminals = setUpTerminals(context, gitPath());
-    statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
-    refreshStatus();
-    statusBar.show();
-
+    // Commands first: if anything later in activation failed, they'd otherwise never be registered and
+    // users would only see "command not found".
     context.subscriptions.push(
-        statusBar,
-        output,
         vscode.commands.registerCommand("commitModel.toggle", () => (enabled ? turnOff() : turnOn())),
         vscode.commands.registerCommand("commitModel.start", turnOn),
         vscode.commands.registerCommand("commitModel.stop", turnOff),
         vscode.commands.registerCommand("commitModel.generate", (sourceControl?: { rootUri?: vscode.Uri }) =>
             fillCommitBox(sourceControl)),
     );
+    output = vscode.window.createOutputChannel("Commit Model");
+    statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+    context.subscriptions.push(output, statusBar);
+    refreshStatus();
+    statusBar.show();
+
+    try {
+        terminals = setUpTerminals(context, gitPath());
+    } catch (error) {
+        // The ✨ button still works without the terminal prompt.
+        log(`terminal setup failed: ${errorMessage(error)}`);
+        ui.warn(`Commit Model: the terminal prompt after \`git add\` couldn't be set up: ${errorMessage(error)}`);
+    }
     return { ui, terminals };
 }
 
@@ -112,8 +127,52 @@ async function startEngine(): Promise<boolean> {
         return true;
     } catch (error) {
         log(`couldn't start: ${errorMessage(error)}`);
-        ui.error(`Commit Model couldn't start: ${errorMessage(error)}`);
+        if (error instanceof MissingRuntimeError) {
+            void offerRuntimeInstall();
+        } else {
+            ui.error(`Commit Model couldn't start: ${errorMessage(error)}`);
+        }
         return false;
+    } finally {
+        refreshStatus();
+    }
+}
+
+/**
+ * Windows without the Microsoft Visual C++ runtime: offers to download Microsoft's installer and run it
+ * (Windows asks for permission), then turns Commit Model on.
+ */
+async function offerRuntimeInstall(): Promise<void> {
+    const install = await ui.offerInstall(
+        "Commit Model needs the Microsoft Visual C++ runtime, which isn't installed on this PC. " +
+        "It's a free Microsoft component that many apps use.",
+        "Install it",
+    );
+    if (!install) {
+        return;
+    }
+    try {
+        const installer = path.join(extensionContext.globalStorageUri.fsPath, "vc_redist.x64.exe");
+        await fs.mkdir(path.dirname(installer), { recursive: true });
+        await downloadFile(MissingRuntimeError.INSTALLER_URL, installer, (percent) =>
+            setStatus(`$(cloud-download) Commit Model ${percent}%`, "Downloading the Microsoft Visual C++ runtime"));
+        setStatus("$(loading~spin) Commit Model: Installing", "Installing the Microsoft Visual C++ runtime");
+        log("installing the Microsoft Visual C++ runtime");
+        const code = await new Promise<number | null>((resolve, reject) => {
+            const child = spawn(installer, ["/install", "/passive", "/norestart"]);
+            child.on("error", reject);
+            child.on("exit", resolve);
+        });
+        // 0: installed; 1638: a newer version is already there; 3010: installed, restart recommended
+        if (code !== 0 && code !== 1638 && code !== 3010) {
+            throw new Error(`the installer ended with code ${code} (cancelled?)`);
+        }
+        log("Microsoft Visual C++ runtime installed");
+        await turnOn();
+    } catch (error) {
+        log(`runtime install failed: ${errorMessage(error)}`);
+        ui.error(`Commit Model couldn't install the Microsoft Visual C++ runtime: ${errorMessage(error)}. ` +
+            `You can install it yourself from ${MissingRuntimeError.INSTALLER_URL}`);
     } finally {
         refreshStatus();
     }
@@ -131,9 +190,6 @@ async function turnOn(): Promise<void> {
         terminals?.turnOn(engine.url);
         enabled = true;
         log("turned on");
-        if (!terminals) {
-            ui.warn("Commit Model: the terminal prompt after `git add` isn't available on Windows yet; use the ✨ button in Source Control.");
-        }
     } finally {
         starting = false;
         refreshStatus();
